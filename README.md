@@ -13,6 +13,16 @@ A **"Who's watching?" profile picker for Stremio.** Stremio has no built-in prof
 
 The two platforms reach Stremio differently — see below — but both share the same picker UI and login logic. Full details in [docs/HOW-IT-WORKS.md](docs/HOW-IT-WORKS.md); the API/storage contract is in [docs/STREMIO-API.md](docs/STREMIO-API.md).
 
+## Screenshots
+
+The "Who's watching?" picker — the same UI on Windows and Android:
+
+![STRLoader profile picker](media/picker.png)
+
+Adding a profile, with open-source [Lucide](https://lucide.dev) icons. Only a revocable login token is stored — never your password:
+
+<img src="media/add-profile.png" alt="Add a profile" width="360" />
+
 ## Download
 
 Grab the latest **Windows installer** (`.exe`) and **Android APK** from the
