@@ -50,11 +50,6 @@ class StremioActivity : Activity() {
     private var customViewCallback: WebChromeClient.CustomViewCallback? = null
     private var savedOrientation = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
 
-    private val avatarColors = intArrayOf(
-        0xFF7B5BF5.toInt(), 0xFF0D9488.toInt(), 0xFFE11D48.toInt(), 0xFFF59E0B.toInt(),
-        0xFF2563EB.toInt(), 0xFF16A34A.toInt(), 0xFFDB2777.toInt(), 0xFF7C3AED.toInt(),
-    )
-
     @SuppressLint("SetJavaScriptEnabled")
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -154,7 +149,7 @@ class StremioActivity : Activity() {
             isClickable = true
             setOnClickListener { showSelector(this) }
         }
-        chipAvatar = makeAvatar("?", avatarColors[0], 30)
+        chipAvatar = makeAvatar("?", 30)
         chip.addView(chipAvatar, LinearLayout.LayoutParams(dp(30), dp(30)))
         chipName = TextView(this).apply {
             setTextColor(Color.WHITE)
@@ -177,7 +172,7 @@ class StremioActivity : Activity() {
         val p = currentId?.let { store.get(it) }
         val label = p?.optString("label") ?: "Profile"
         chipName.text = label
-        styleAvatar(chipAvatar, label, colorFor(currentId ?: label))
+        styleAvatar(chipAvatar, label)
     }
 
     // ---- Selector ----
@@ -221,8 +216,7 @@ class StremioActivity : Activity() {
             isClickable = true
             setOnClickListener { onClick() }
         }
-        row.addView(makeAvatar(initial(label), colorFor(id), 36).also { styleAvatar(it, label, colorFor(id)) },
-            LinearLayout.LayoutParams(dp(36), dp(36)))
+        row.addView(makeAvatar(initial(label), 36), LinearLayout.LayoutParams(dp(36), dp(36)))
         val name = TextView(this).apply {
             text = if (current) "$label" else label
             setTextColor(Color.WHITE)
@@ -312,21 +306,25 @@ class StremioActivity : Activity() {
     private fun dp(v: Int): Int = (v * resources.displayMetrics.density).toInt()
     private fun toast(m: String) = android.widget.Toast.makeText(this, m, android.widget.Toast.LENGTH_SHORT).show()
     private fun initial(label: String): String = label.trim().ifEmpty { "?" }.substring(0, 1).uppercase()
-    private fun colorFor(key: String): Int = avatarColors[Math.floorMod(key.hashCode(), avatarColors.size)]
 
-    private fun makeAvatar(initial: String, color: Int, sizeDp: Int): TextView = TextView(this).apply {
+    // The picker's avatar look: purple accent gradient.
+    private fun avatarDrawable(): GradientDrawable = GradientDrawable(
+        GradientDrawable.Orientation.TL_BR,
+        intArrayOf(0xFF7B5BF5.toInt(), 0xFF4A2FB0.toInt())
+    ).apply { shape = GradientDrawable.OVAL }
+
+    private fun makeAvatar(initial: String, sizeDp: Int): TextView = TextView(this).apply {
         text = initial
         setTextColor(Color.WHITE)
         gravity = Gravity.CENTER
         typeface = android.graphics.Typeface.DEFAULT_BOLD
         setTextSize(TypedValue.COMPLEX_UNIT_SP, (sizeDp / 2.4f))
-        background = GradientDrawable().apply { shape = GradientDrawable.OVAL; setColor(color) }
+        background = avatarDrawable()
     }
 
-    private fun styleAvatar(tv: TextView, label: String, color: Int) {
+    private fun styleAvatar(tv: TextView, label: String) {
         tv.text = initial(label)
-        (tv.background as? GradientDrawable)?.setColor(color)
-            ?: run { tv.background = GradientDrawable().apply { shape = GradientDrawable.OVAL; setColor(color) } }
+        if (tv.background !is GradientDrawable) tv.background = avatarDrawable()
     }
 
     private fun pill(color: Int): GradientDrawable =

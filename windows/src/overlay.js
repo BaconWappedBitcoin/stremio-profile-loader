@@ -16,12 +16,12 @@
   var FALLBACK_ID = (typeof STRLOADER_CURRENT_ID !== 'undefined') ? STRLOADER_CURRENT_ID : null;
   if (!PROFILES.length) return;
 
-  var COLORS = ['#7B5BF5', '#0D9488', '#E11D48', '#F59E0B', '#2563EB', '#16A34A', '#DB2777', '#7C3AED'];
-  function colorFor(k) { k = k || ''; var h = 0; for (var i = 0; i < k.length; i++) { h = (h * 31 + k.charCodeAt(i)) >>> 0; } return COLORS[h % COLORS.length]; }
+  // Matches the picker's avatar (the purple accent gradient).
+  var AVATAR_BG = 'linear-gradient(135deg,#7B5BF5,#4A2FB0)';
   function initial(s) { s = (s || '?').trim(); return (s.charAt(0) || '?').toUpperCase(); }
   function el(tag, css, text) { var e = document.createElement(tag); if (css) e.style.cssText = css; if (text != null) e.textContent = text; return e; }
   function avatar(label, size) {
-    return el('div', 'width:' + size + 'px;height:' + size + 'px;border-radius:50%;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;font-family:sans-serif;font-size:' + (size * 0.42) + 'px;background:' + colorFor(label) + ';flex:0 0 auto;', initial(label));
+    return el('div', 'width:' + size + 'px;height:' + size + 'px;border-radius:50%;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;font-family:sans-serif;font-size:' + (size * 0.42) + 'px;background:' + AVATAR_BG + ';flex:0 0 auto;', initial(label));
   }
   function currentId() {
     try {
