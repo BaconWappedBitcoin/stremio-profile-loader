@@ -6,12 +6,22 @@ A **"Who's watching?" profile picker for Stremio.** Stremio has no built-in prof
 
 | App | Platform | What it drives | Tech | Status |
 |-----|----------|----------------|------|--------|
-| [`windows/`](windows/) | Windows desktop | the **native** Stremio app | Electron launcher | ✅ runs; native injection needs verifying on a real install (`npm run doctor`) |
-| [`android/`](android/) | Android phone / tablet / TV | a wrapped **Stremio Web** session | Kotlin WebView | ✅ builds (APK) |
+| [`windows/`](windows/) | Windows desktop | the **native** Stremio app | Electron launcher | ✅ verified driving native Stremio 5 |
+| [`android/`](android/) | Android phone / tablet / TV | a wrapped **Stremio Web** session | Kotlin WebView | ✅ builds & installs (APK) |
 
 > **How it works in one line:** you add each profile once (email + password); the loader signs in via the Stremio API, stores only a revocable login token, and on launch seeds that session into Stremio so it opens straight into your account. Your password is never stored.
 
 The two platforms reach Stremio differently — see below — but both share the same picker UI and login logic. Full details in [docs/HOW-IT-WORKS.md](docs/HOW-IT-WORKS.md); the API/storage contract is in [docs/STREMIO-API.md](docs/STREMIO-API.md).
+
+## Download
+
+Grab the latest **Windows installer** (`.exe`) and **Android APK** from the
+**[Releases page →](https://github.com/BaconWappedBitcoin/stremio-profile-loader/releases/latest)**
+
+- **Windows:** download and run the installer. You must also have the official [Stremio desktop app](https://www.stremio.com/downloads) installed — STRLoader drives it.
+- **Android:** download `STRLoader.apk` on the device and open it (you'll be asked to allow "install unknown apps" the first time). See [Sideloading](#sideloading-the-android-apk). Best with debrid/HTTP addons.
+
+Prefer to build from source? See [Quick start](#quick-start).
 
 ---
 
@@ -74,6 +84,24 @@ adb install -r app/build/outputs/apk/debug/app-debug.apk
 
 Requires Android SDK with **API 36** + **build-tools 36.0.0** (AGP 8.9.1 / Gradle 8.11.1, JDK 17+). Installs on phones, tablets, and Android TV.
 
+### Sideloading the Android APK
+
+The APK is a **debug build** (signed with the standard Android debug key, so it installs without further signing).
+
+**Phone / tablet**
+1. Download `STRLoader.apk` onto the device (from [Releases](https://github.com/BaconWappedBitcoin/stremio-profile-loader/releases/latest)) or transfer it over.
+2. Open it in your **Files** / Downloads app and tap **Install**.
+3. First time, Android blocks it: tap **Settings → Allow from this source** for the app you opened it with, then install again.
+4. **Play Protect** may warn about an unknown app → **Install anyway**.
+
+**ADB**
+```bash
+# enable Settings → About → tap "Build number" 7× → Developer options → USB debugging
+adb install -r STRLoader.apk
+```
+
+**Android TV** (no file manager): install **Downloader** (by AFTVnews) from the TV's store and point it at the `STRLoader.apk` release URL, or use ADB over the network (`adb connect <TV-IP>:5555` then `adb install -r STRLoader.apk`).
+
 ## Usage
 
 1. Launch the loader — you'll see the profile picker.
@@ -104,7 +132,7 @@ git tag v0.1.0
 git push origin v0.1.0
 ```
 
-The workflow builds both apps and attaches `*.exe` + `STRLoader.apk` to a GitHub Release for that tag. You can also trigger it manually (Actions → Build & Release → Run workflow) to get the artifacts without making a release.
+The workflow builds both apps and attaches the installer + `STRLoader.apk` to a [GitHub Release](https://github.com/BaconWappedBitcoin/stremio-profile-loader/releases) for that tag. You can also trigger it manually (Actions → Build & Release → Run workflow) to get the build **artifacts** without publishing a release — note those are zipped under the run page and are not the same as a Release.
 
 ## License
 
