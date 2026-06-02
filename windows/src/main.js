@@ -69,11 +69,11 @@ function showPicker() {
 ipcMain.handle('profiles:list', () => store.list());
 
 ipcMain.handle('profiles:add', async (_evt, { label, email, password, icon }) => {
-  if (!label || !email || !password) {
+  if (!label || !label.trim() || !email || !email.trim() || !password) {
     throw new Error('Please fill in the profile name, email and password.');
   }
-  const { authKey, user } = await api.login(email, password);
-  const created = store.add({ label, email, authKey, user, icon });
+  const { authKey, user } = await api.login(email.trim(), password);
+  const created = store.add({ label: label.trim(), email: email.trim(), authKey, user, icon });
   return { id: created.id, label: created.label, email: created.email, avatar: created.avatar, icon: created.icon };
 });
 
@@ -99,6 +99,9 @@ ipcMain.handle('profiles:launch', async (_evt, id) => {
     user = await api.getUser(profile.authKey);
   } catch (e) {
     if (e instanceof api.StremioApiError) {
+      if (e.code === 'NETWORK') {
+        throw new Error('Network error talking to Stremio. Check your connection and try again.');
+      }
       throw new Error('This profile\'s Stremio session has expired. Remove it and add it again.');
     }
     throw e;

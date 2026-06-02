@@ -24,6 +24,7 @@ function getJson(url) {
       let d = '';
       res.on('data', (c) => { d += c; });
       res.on('end', () => { try { resolve(JSON.parse(d)); } catch (e) { reject(e); } });
+      res.on('error', reject);
     });
     req.on('error', reject);
     req.setTimeout(2000, () => req.destroy(new Error('timeout')));

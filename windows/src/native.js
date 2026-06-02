@@ -103,6 +103,7 @@ function httpGetJson(url) {
       res.on('end', () => {
         try { resolve(JSON.parse(data)); } catch (e) { reject(e); }
       });
+      res.on('error', reject);
     });
     req.on('error', reject);
     req.setTimeout(2000, () => req.destroy(new Error('timeout')));
@@ -172,7 +173,8 @@ function setupOverlayAndSeed(webSocketDebuggerUrl, opts) {
     const timer = setTimeout(() => { try { ws.close(); } catch (_) {} reject(new Error('CDP setup timed out')); }, 20000);
 
     ws.on('message', (raw) => {
-      const msg = JSON.parse(raw.toString());
+      let msg;
+      try { msg = JSON.parse(raw.toString()); } catch (_) { return; }
       if (msg.id && pending.has(msg.id)) { pending.get(msg.id)(msg); pending.delete(msg.id); return; }
       // The injected chip calls window.strloaderOpenPicker() -> reopen the picker.
       if (msg.method === 'Runtime.bindingCalled' && msg.params && msg.params.name === 'strloaderOpenPicker') {
