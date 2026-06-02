@@ -1,6 +1,6 @@
 {
   "name": "stremio-profile-loader-windows",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "description": "Profile picker that launches Stremio Web already signed in to a chosen account (Windows/desktop, Electron).",
   "main": "src/main.js",
   "author": "",
