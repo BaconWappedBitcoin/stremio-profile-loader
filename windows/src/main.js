@@ -14,7 +14,6 @@
 
 const { app, BrowserWindow, ipcMain } = require('electron');
 const path = require('path');
-const fs = require('fs');
 
 // Resolve the shared/ directory both in dev and when packaged (see extraResources
 // in package.json -> it lands next to the app under resources/shared).
@@ -48,6 +47,14 @@ function createPickerWindow() {
 
   pickerWindow.loadFile(path.join(SHARED_DIR, 'picker', 'index.html'));
   pickerWindow.on('closed', () => { pickerWindow = null; });
+}
+
+/** Bring the picker window back to the front (from the in-Stremio "Switch" chip). */
+function showPicker() {
+  if (!pickerWindow) { createPickerWindow(); return; }
+  if (pickerWindow.isMinimized()) pickerWindow.restore();
+  pickerWindow.show();
+  pickerWindow.focus();
 }
 
 // ---- IPC: the renderer's LoaderBridge maps onto these handlers ----
@@ -102,14 +109,14 @@ ipcMain.handle('profiles:launch', async (_evt, id) => {
   };
 
   // (Re)launch the native Stremio app signed in to this profile, and inject the
-  // in-app profile selector overlay (lists all profiles for in-place switching).
-  const apiSource = fs.readFileSync(path.join(SHARED_DIR, 'stremio-api.js'), 'utf8');
+  // in-app chip that reopens this picker (so the user can switch from inside
+  // Stremio without hunting for the picker window).
   await native.launchWithProfile({
     profileObject,
     schemaVersion: api.SCHEMA_VERSION,
     overlayProfiles: store.allWithKeys(),
     currentId: id,
-    apiSource,
+    onOpenPicker: showPicker,
   });
 
   // Keep the picker around (minimized) so the user can switch again later.

@@ -144,18 +144,16 @@ function closeActiveCdp() {
 }
 
 /**
- * Build the script injected into every Stremio document: the shared API module
- * (defines window.StremioApi) + the profile data header + the overlay UI. Uses
- * string concatenation (not a template literal) so backticks inside apiSource /
- * overlay are preserved verbatim.
+ * Build the script injected into every Stremio document: the profile-data header
+ * + the overlay chip. The chip reopens the picker via the strloaderOpenPicker
+ * binding, so no in-page switching / API module is needed.
  */
-function buildOverlaySource(apiSource, profiles, currentId, schemaVersion) {
+function buildOverlaySource(profiles, currentId) {
   const overlayBody = fs.readFileSync(path.join(__dirname, 'overlay.js'), 'utf8');
   const header =
     'var STRLOADER_PROFILES=' + JSON.stringify(profiles) + ';' +
-    'var STRLOADER_CURRENT_ID=' + JSON.stringify(currentId) + ';' +
-    'var STRLOADER_SCHEMA=' + JSON.stringify(schemaVersion) + ';';
-  return '(function(){\n' + apiSource + '\n' + header + '\n' + overlayBody + '\n})();';
+    'var STRLOADER_CURRENT_ID=' + JSON.stringify(currentId) + ';';
+  return '(function(){\n' + header + '\n' + overlayBody + '\n})();';
 }
 
 /**
@@ -163,7 +161,7 @@ function buildOverlaySource(apiSource, profiles, currentId, schemaVersion) {
  * document, then seed the launched profile's session and reload.
  */
 function setupOverlayAndSeed(webSocketDebuggerUrl, opts) {
-  const { profileObject, schemaVersion, overlayProfiles, currentId, apiSource } = opts;
+  const { profileObject, schemaVersion, overlayProfiles, currentId, onOpenPicker } = opts;
   return new Promise((resolve, reject) => {
     const ws = new WebSocket(webSocketDebuggerUrl);
     let id = 0;
@@ -175,7 +173,11 @@ function setupOverlayAndSeed(webSocketDebuggerUrl, opts) {
 
     ws.on('message', (raw) => {
       const msg = JSON.parse(raw.toString());
-      if (msg.id && pending.has(msg.id)) { pending.get(msg.id)(msg); pending.delete(msg.id); }
+      if (msg.id && pending.has(msg.id)) { pending.get(msg.id)(msg); pending.delete(msg.id); return; }
+      // The injected chip calls window.strloaderOpenPicker() -> reopen the picker.
+      if (msg.method === 'Runtime.bindingCalled' && msg.params && msg.params.name === 'strloaderOpenPicker') {
+        try { if (typeof onOpenPicker === 'function') onOpenPicker(); } catch (_) {}
+      }
     });
     ws.on('error', (e) => { clearTimeout(timer); if (activeCdp && activeCdp.ws === ws) activeCdp = null; reject(e); });
     ws.on('close', () => { if (activeCdp && activeCdp.ws === ws) activeCdp = null; });
@@ -183,8 +185,10 @@ function setupOverlayAndSeed(webSocketDebuggerUrl, opts) {
       try {
         await send('Page.enable', {});
         await send('Runtime.enable', {});
+        // Expose window.strloaderOpenPicker on the page (and future reloads).
+        await send('Runtime.addBinding', { name: 'strloaderOpenPicker' });
 
-        const source = buildOverlaySource(apiSource, overlayProfiles, currentId, schemaVersion);
+        const source = buildOverlaySource(overlayProfiles, currentId);
         await send('Page.addScriptToEvaluateOnNewDocument', { source });
 
         // Seed the launched profile, then reload so the registered script runs
@@ -207,7 +211,7 @@ function setupOverlayAndSeed(webSocketDebuggerUrl, opts) {
 /**
  * Full launch: find exe, restart Stremio with debugging, inject the profile
  * session + the in-app profile selector overlay.
- * @param {object} opts {profileObject, schemaVersion, overlayProfiles, currentId, apiSource}
+ * @param {object} opts {profileObject, schemaVersion, overlayProfiles, currentId, onOpenPicker}
  */
 async function launchWithProfile(opts) {
   const exe = findStremioExe();

@@ -1,22 +1,23 @@
 /**
- * STRLoader in-app profile selector, injected into the NATIVE Stremio app's page
- * via CDP (Page.addScriptToEvaluateOnNewDocument) so it re-mounts on every reload.
+ * STRLoader chip injected into the NATIVE Stremio app's page via CDP
+ * (Page.addScriptToEvaluateOnNewDocument, so it re-mounts on every reload).
  *
- * Self-contained (option 1): it switches profiles by rebuilding the session
- * in-page with window.StremioApi and reloading. Reads STRLOADER_PROFILES /
- * STRLOADER_CURRENT_ID / STRLOADER_SCHEMA from the injected header (see
- * native.js buildOverlaySource). The current profile is derived from the live
- * session (localStorage profile authKey), so it stays correct after switches.
+ * It shows the current profile and, when clicked, reopens the STRLoader picker
+ * (the Electron window) via the `strloaderOpenPicker` CDP binding — switching
+ * happens there, in a guaranteed-interactive native window, rather than in a
+ * fragile in-page menu. Hidden while a video is playing (the player route).
+ *
+ * Reads STRLOADER_PROFILES / STRLOADER_CURRENT_ID from the injected header
+ * (see native.js buildOverlaySource).
  */
 (function () {
   'use strict';
 
   var PROFILES = (typeof STRLOADER_PROFILES !== 'undefined') ? STRLOADER_PROFILES : [];
-  var SCHEMA = (typeof STRLOADER_SCHEMA !== 'undefined') ? STRLOADER_SCHEMA : '22';
   var FALLBACK_ID = (typeof STRLOADER_CURRENT_ID !== 'undefined') ? STRLOADER_CURRENT_ID : null;
   if (!PROFILES.length) return;
 
-  // Matches the picker's avatar (the purple accent gradient).
+  // Matches the picker's avatar (purple accent gradient).
   var AVATAR_BG = 'linear-gradient(135deg,#7B5BF5,#4A2FB0)';
   function initial(s) { s = (s || '?').trim(); return (s.charAt(0) || '?').toUpperCase(); }
   function el(tag, css, text) { var e = document.createElement(tag); if (css) e.style.cssText = css; if (text != null) e.textContent = text; return e; }
@@ -33,57 +34,31 @@
     return FALLBACK_ID;
   }
   function byId(id) { return PROFILES.filter(function (p) { return p.id === id; })[0] || PROFILES[0]; }
-
-  function switchTo(p) {
-    if (p.id === currentId()) return;
-    if (!window.StremioApi) { window.alert('STRLoader: not ready yet, try again in a moment.'); return; }
-    window.StremioApi.buildProfile(p.authKey).then(function (prof) {
-      localStorage.setItem('profile', JSON.stringify(prof));
-      localStorage.setItem('schema_version', SCHEMA);
-      location.reload();
-    }).catch(function (e) { window.alert('STRLoader: switch failed — ' + (e && e.message || e)); });
-  }
+  function openPicker() { try { if (window.strloaderOpenPicker) window.strloaderOpenPicker(''); } catch (e) { /* ignore */ } }
 
   function mount() {
     if (document.getElementById('strloader-overlay')) return;
     if (!document.body) { setTimeout(mount, 200); return; }
 
-    var cid = currentId();
-    var cur = byId(cid);
+    var cur = byId(currentId());
 
-    // Bottom-center: the window corners are OS resize grips and the top strip is
-    // the title-bar drag region — clicks there are eaten by the OS before they
-    // reach the page. Center-bottom is clear of all of that. no-drag for safety.
+    // Bottom-center: window corners are OS resize grips and the top strip is the
+    // title-bar drag region, both of which eat clicks before the page sees them.
     var wrap = el('div', 'position:fixed;bottom:22px;left:50%;transform:translateX(-50%);z-index:2147483647;font-family:sans-serif;-webkit-app-region:no-drag;');
     wrap.id = 'strloader-overlay';
 
-    var chip = el('div', 'display:flex;align-items:center;gap:8px;background:rgba(17,17,31,0.92);border:1px solid #2a2a44;border-radius:22px;padding:5px 10px 5px 6px;cursor:pointer;box-shadow:0 4px 14px rgba(0,0,0,0.45);');
+    var chip = el('div', 'display:flex;align-items:center;gap:8px;background:rgba(17,17,31,0.94);border:1px solid #2a2a44;border-radius:22px;padding:5px 14px 5px 6px;cursor:pointer;box-shadow:0 4px 14px rgba(0,0,0,0.45);');
     chip.appendChild(avatar(cur.label, 28));
-    chip.appendChild(el('span', 'color:#fff;font-size:13px;max-width:130px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;', cur.label));
-    chip.appendChild(el('span', 'color:#a9a9c7;font-size:11px;margin-left:2px;', '▾'));
+    chip.appendChild(el('span', 'color:#fff;font-size:13px;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;', cur.label));
+    chip.appendChild(el('span', 'color:#b9a9ff;font-size:12px;font-weight:600;margin-left:4px;', 'Switch ▸'));
+    chip.title = 'Switch profile';
+    chip.onclick = openPicker;
     wrap.appendChild(chip);
 
-    var menu = el('div', 'position:absolute;bottom:46px;left:50%;transform:translateX(-50%);min-width:210px;max-height:70vh;overflow:auto;background:#16162a;border:1px solid #2a2a44;border-radius:12px;padding:6px;box-shadow:0 12px 34px rgba(0,0,0,0.55);display:none;');
-    PROFILES.forEach(function (p) {
-      var row = el('div', 'display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:8px;cursor:pointer;');
-      row.onmouseenter = function () { row.style.background = '#20203a'; };
-      row.onmouseleave = function () { row.style.background = 'transparent'; };
-      row.appendChild(avatar(p.label, 30));
-      row.appendChild(el('span', 'color:#fff;font-size:14px;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;', p.label));
-      if (p.id === cid) { row.appendChild(el('span', 'color:#8e72ff;font-size:15px;', '✓')); }
-      row.onclick = function () { menu.style.display = 'none'; switchTo(p); };
-      menu.appendChild(row);
-    });
-    wrap.appendChild(menu);
-
-    chip.onclick = function (ev) { ev.stopPropagation(); menu.style.display = (menu.style.display === 'none' ? 'block' : 'none'); };
-    document.addEventListener('click', function (ev) { if (!wrap.contains(ev.target)) menu.style.display = 'none'; });
-
-    // Hide the selector while a video is playing (the player route).
+    // Hide while a video is playing (the player route).
     function updateVisibility() {
       var onPlayer = (location.hash || '').indexOf('/player') !== -1;
       wrap.style.display = onPlayer ? 'none' : '';
-      if (onPlayer) menu.style.display = 'none';
     }
     window.addEventListener('hashchange', updateVisibility);
     setInterval(updateVisibility, 600);
@@ -94,8 +69,6 @@
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', mount);
   else mount();
-  // Stremio renders asynchronously; retry a couple of times in case body/app
-  // isn't ready on first pass.
   setTimeout(mount, 1000);
   setTimeout(mount, 3000);
 })();
