@@ -24,12 +24,17 @@
     email: $('#f-email'),
     password: $('#f-password'),
     iconPicker: $('#icon-picker'),
+    credentialFields: $('#credential-fields'),
+    modalTitle: $('#modal-title'),
     formError: $('#form-error'),
     saveBtn: $('#save-btn'),
     cancelBtn: $('#cancel-btn'),
   };
 
   let selectedIcon = null;
+  let editingId = null; // null => add mode; an id => edit mode
+
+  const PENCIL_SVG = '<svg class="icon-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z"/><path d="m15 5 4 4"/></svg>';
 
   function bridge() {
     if (!window.LoaderBridge) {
@@ -76,6 +81,7 @@
       card.setAttribute('tabindex', '0');
       card.dataset.id = p.id;
       card.innerHTML = `
+        <button class="profile__edit" title="Edit profile" aria-label="Edit profile">${PENCIL_SVG}</button>
         <button class="profile__delete" title="Remove profile" aria-label="Remove profile">&times;</button>
         <div class="profile__avatar">${avatarMarkup(p)}</div>
         <div class="profile__label">${escapeHtml(p.label)}</div>
@@ -83,7 +89,7 @@
       `;
 
       card.addEventListener('click', (e) => {
-        if (e.target.closest('.profile__delete')) return;
+        if (e.target.closest('.profile__delete') || e.target.closest('.profile__edit')) return;
         launchProfile(p, card);
       });
       card.addEventListener('keydown', (e) => {
@@ -92,6 +98,10 @@
       card.querySelector('.profile__delete').addEventListener('click', (e) => {
         e.stopPropagation();
         removeProfile(p);
+      });
+      card.querySelector('.profile__edit').addEventListener('click', (e) => {
+        e.stopPropagation();
+        openEditModal(p);
       });
 
       els.profiles.appendChild(card);
@@ -175,14 +185,45 @@
   }
 
   // ---- Modal ----
+  // Email + password are only needed when adding; toggle them (and their
+  // `required` validation) off in edit mode.
+  function setCredentialFieldsVisible(visible) {
+    els.credentialFields.hidden = !visible;
+    els.email.required = visible;
+    els.password.required = visible;
+  }
+
+  function defaultIcon() {
+    const order = (window.LoaderIcons && window.LoaderIcons.order) || [];
+    return order.length ? order[0] : null;
+  }
+
   function openModal() {
+    editingId = null;
     els.form.reset();
     els.formError.hidden = true;
-    const order = (window.LoaderIcons && window.LoaderIcons.order) || [];
-    if (order.length) selectIcon(order[0]);
+    els.modalTitle.textContent = 'Add profile';
+    els.saveBtn.textContent = 'Sign in & save';
+    setCredentialFieldsVisible(true);
+    const d = defaultIcon();
+    if (d) selectIcon(d);
     els.modal.hidden = false;
     setTimeout(() => els.label.focus(), 50);
   }
+
+  function openEditModal(p) {
+    editingId = p.id;
+    els.form.reset();
+    els.formError.hidden = true;
+    els.modalTitle.textContent = 'Edit profile';
+    els.saveBtn.textContent = 'Save';
+    setCredentialFieldsVisible(false);
+    els.label.value = p.label || '';
+    selectIcon(p.icon || defaultIcon());
+    els.modal.hidden = false;
+    setTimeout(() => els.label.focus(), 50);
+  }
+
   function closeModal() { els.modal.hidden = true; }
 
   function setFormError(msg) {
@@ -197,22 +238,31 @@
   els.form.addEventListener('submit', async (e) => {
     e.preventDefault();
     setFormError('');
+    const isEdit = !!editingId;
+    const savedLabel = els.saveBtn.textContent;
     els.saveBtn.disabled = true;
-    els.saveBtn.textContent = 'Signing in…';
+    els.saveBtn.textContent = isEdit ? 'Saving…' : 'Signing in…';
     try {
-      await bridge().addProfile({
-        label: els.label.value.trim(),
-        email: els.email.value.trim(),
-        password: els.password.value,
-        icon: selectedIcon,
-      });
+      if (isEdit) {
+        await bridge().updateProfile(editingId, {
+          label: els.label.value.trim(),
+          icon: selectedIcon,
+        });
+      } else {
+        await bridge().addProfile({
+          label: els.label.value.trim(),
+          email: els.email.value.trim(),
+          password: els.password.value,
+          icon: selectedIcon,
+        });
+      }
       closeModal();
       await refresh();
     } catch (err) {
-      setFormError(err.message || 'Sign in failed.');
+      setFormError(err.message || (isEdit ? 'Could not save profile.' : 'Sign in failed.'));
     } finally {
       els.saveBtn.disabled = false;
-      els.saveBtn.textContent = 'Sign in & save';
+      els.saveBtn.textContent = savedLabel;
     }
   });
 

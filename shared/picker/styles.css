@@ -141,6 +141,28 @@ body {
 .profile:hover .profile__delete { opacity: 1; }
 .profile__delete:hover { background: var(--danger); color: #fff; }
 
+.profile__edit {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  border: none;
+  background: rgba(0, 0, 0, 0.4);
+  color: var(--text-dim);
+  cursor: pointer;
+  opacity: 0;
+  padding: 0;
+  transition: opacity 0.12s ease, background 0.12s ease, color 0.12s ease;
+}
+.profile:hover .profile__edit { opacity: 1; }
+.profile__edit:hover { background: var(--accent); color: #fff; }
+.profile__edit .icon-svg { width: 13px; height: 13px; }
+
 .profile--add .profile__avatar {
   background: transparent;
   border: 2px dashed var(--border);

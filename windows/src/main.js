@@ -62,6 +62,13 @@ ipcMain.handle('profiles:add', async (_evt, { label, email, password, icon }) =>
   return { id: created.id, label: created.label, email: created.email, avatar: created.avatar, icon: created.icon };
 });
 
+ipcMain.handle('profiles:update', async (_evt, id, { label, icon }) => {
+  if (!label || !label.trim()) throw new Error('Please enter a profile name.');
+  const updated = store.update(id, { label: label.trim(), icon });
+  if (!updated) throw new Error('Profile not found.');
+  return { id: updated.id, label: updated.label, email: updated.email, avatar: updated.avatar, icon: updated.icon };
+});
+
 ipcMain.handle('profiles:delete', async (_evt, id) => {
   store.remove(id);
 });

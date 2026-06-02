@@ -24,6 +24,7 @@ contextBridge.exposeInMainWorld('LoaderBridge', {
   platform: 'electron',
   listProfiles: () => invoke('profiles:list'),
   addProfile: (data) => invoke('profiles:add', data),
+  updateProfile: (id, data) => invoke('profiles:update', id, data),
   deleteProfile: (id) => invoke('profiles:delete', id),
   launch: (id) => invoke('profiles:launch', id),
 });

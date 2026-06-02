@@ -69,6 +69,10 @@ class MainActivity : Activity() {
               try { return Promise.resolve(JSON.parse(AndroidBridge.listProfiles())); }
               catch (e) { return Promise.reject(e); }
             },
+            updateProfile: function (id, data) {
+              try { AndroidBridge.updateProfile(id, data.label, data.icon || null); return Promise.resolve(); }
+              catch (e) { return Promise.reject(e); }
+            },
             deleteProfile: function (id) {
               try { AndroidBridge.deleteProfile(id); return Promise.resolve(); }
               catch (e) { return Promise.reject(e); }

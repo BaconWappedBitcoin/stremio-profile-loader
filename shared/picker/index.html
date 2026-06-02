@@ -37,16 +37,18 @@
         </div>
       </div>
 
-      <label class="field">
-        <span class="field__label">Stremio email</span>
-        <input id="f-email" class="field__input" type="email" placeholder="you@example.com" required />
-      </label>
+      <div id="credential-fields">
+        <label class="field">
+          <span class="field__label">Stremio email</span>
+          <input id="f-email" class="field__input" type="email" placeholder="you@example.com" required />
+        </label>
 
-      <label class="field">
-        <span class="field__label">Password</span>
-        <input id="f-password" class="field__input" type="password" placeholder="Stremio password" required />
-        <span class="field__hint">Used once to sign in. Only a revocable login token is stored — never your password.</span>
-      </label>
+        <label class="field">
+          <span class="field__label">Password</span>
+          <input id="f-password" class="field__input" type="password" placeholder="Stremio password" required />
+          <span class="field__hint">Used once to sign in. Only a revocable login token is stored — never your password.</span>
+        </label>
+      </div>
 
       <p id="form-error" class="form-error" hidden></p>
 

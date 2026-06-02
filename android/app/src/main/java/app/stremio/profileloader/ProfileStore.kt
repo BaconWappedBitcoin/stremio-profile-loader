@@ -62,6 +62,19 @@ class ProfileStore(context: Context) {
         return profile
     }
 
+    fun update(id: String, label: String?, icon: String?) {
+        val all = readAll()
+        for (i in 0 until all.length()) {
+            val p = all.getJSONObject(i)
+            if (p.optString("id") == id) {
+                if (label != null) p.put("label", label)
+                p.put("icon", icon ?: JSONObject.NULL)
+                writeAll(all)
+                return
+            }
+        }
+    }
+
     fun updateUser(id: String, user: JSONObject) {
         val all = readAll()
         for (i in 0 until all.length()) {

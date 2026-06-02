@@ -26,6 +26,11 @@ class LoaderBridge(
     fun listProfiles(): String = store.listJson()
 
     @JavascriptInterface
+    fun updateProfile(id: String, label: String, icon: String?) {
+        store.update(id, label.trim(), icon)
+    }
+
+    @JavascriptInterface
     fun deleteProfile(id: String) {
         store.remove(id)
     }

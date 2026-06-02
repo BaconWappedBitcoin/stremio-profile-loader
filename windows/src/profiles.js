@@ -69,6 +69,16 @@ class ProfileStore {
     return profile;
   }
 
+  /** Edit user-facing fields (label, icon) without touching credentials. */
+  update(id, { label, icon }) {
+    const p = this.get(id);
+    if (!p) return null;
+    if (typeof label === 'string') p.label = label;
+    if (icon !== undefined) p.icon = icon || null;
+    this._save();
+    return { id: p.id, label: p.label, email: p.email, avatar: p.avatar || null, icon: p.icon || null };
+  }
+
   /** Refresh the cached user/avatar after a successful launch. */
   updateUser(id, user) {
     const p = this.get(id);
