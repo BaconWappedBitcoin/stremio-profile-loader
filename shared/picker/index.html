@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Stremio Profile Loader</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <main class="app">
+    <header class="app__header">
+      <h1 class="app__title">Stremio</h1>
+      <p class="app__subtitle">Who's watching?</p>
+    </header>
+
+    <section id="profiles" class="profiles" aria-label="Profiles">
+      <!-- profile cards injected here -->
+    </section>
+
+    <div id="status" class="status" role="status" aria-live="polite"></div>
+  </main>
+
+  <!-- Add / edit profile dialog -->
+  <div id="modal" class="modal" hidden>
+    <form id="profile-form" class="modal__card" autocomplete="off">
+      <h2 id="modal-title" class="modal__title">Add profile</h2>
+
+      <label class="field">
+        <span class="field__label">Profile name</span>
+        <input id="f-label" class="field__input" type="text" placeholder="e.g. Living room" required maxlength="40" />
+      </label>
+
+      <label class="field">
+        <span class="field__label">Stremio email</span>
+        <input id="f-email" class="field__input" type="email" placeholder="you@example.com" required />
+      </label>
+
+      <label class="field">
+        <span class="field__label">Password</span>
+        <input id="f-password" class="field__input" type="password" placeholder="Stremio password" required />
+        <span class="field__hint">Used once to sign in. Only a revocable login token is stored — never your password.</span>
+      </label>
+
+      <p id="form-error" class="form-error" hidden></p>
+
+      <div class="modal__actions">
+        <button type="button" id="cancel-btn" class="btn btn--ghost">Cancel</button>
+        <button type="submit" id="save-btn" class="btn btn--primary">Sign in &amp; save</button>
+      </div>
+    </form>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>

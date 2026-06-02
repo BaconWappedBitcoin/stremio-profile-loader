@@ -1,0 +1,26 @@
+# Node / Electron
+node_modules/
+dist/
+out/
+*.log
+npm-debug.log*
+
+# Android / Gradle
+.gradle/
+build/
+local.properties
+*.apk
+*.aab
+*.keystore
+captures/
+.cxx/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.idea/
+*.iml
+.vscode/
+
+# Test/automation artifacts
+.playwright-mcp/

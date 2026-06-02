@@ -1,0 +1,15 @@
+# Normalize line endings across platforms.
+* text=auto
+
+# Scripts that must stay LF to run on macOS/Linux.
+gradlew text eol=lf
+*.sh text eol=lf
+
+# Windows-only scripts stay CRLF.
+*.bat text eol=crlf
+
+# Binaries.
+*.jar binary
+*.apk binary
+*.keystore binary
+*.png binary
