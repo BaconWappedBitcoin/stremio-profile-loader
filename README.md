@@ -58,6 +58,8 @@ npm start              # launch the profile picker
 npm run dist           # build an installer (NSIS)
 ```
 
+> Building the installer locally needs Windows **Developer Mode** on (Settings → Privacy & security → For developers) or an elevated shell, so electron-builder can extract its signing tools (they contain symlinks). CI does this automatically — see [Releases](#releases).
+
 If `npm run doctor` reports the DevTools port never opened, your Stremio build doesn't expose remote debugging — [open an issue](../../issues) with your version (Settings → About) so the injection method can be adapted.
 
 ### Android
@@ -91,6 +93,18 @@ If a stored token ever expires, the loader will tell you to remove and re-add th
   - Windows: `%APPDATA%/STRLoader/profiles.json`
   - Android: app-private `SharedPreferences` (not world-readable)
 - You can revoke a token any time by changing the account's Stremio password.
+
+## Releases
+
+A [GitHub Actions workflow](.github/workflows/release.yml) builds the Windows installer and the Android APK. To cut a release:
+
+```bash
+# bump versions in windows/package.json and android/app/build.gradle.kts, then:
+git tag v0.1.0
+git push origin v0.1.0
+```
+
+The workflow builds both apps and attaches `*.exe` + `STRLoader.apk` to a GitHub Release for that tag. You can also trigger it manually (Actions → Build & Release → Run workflow) to get the artifacts without making a release.
 
 ## License
 
