@@ -47,14 +47,21 @@ function createPickerWindow() {
 
   pickerWindow.loadFile(path.join(SHARED_DIR, 'picker', 'index.html'));
   pickerWindow.on('closed', () => { pickerWindow = null; });
+  // Once it's no longer the active window, stop floating on top.
+  pickerWindow.on('blur', () => { if (pickerWindow) pickerWindow.setAlwaysOnTop(false); });
 }
 
 /** Bring the picker window back to the front (from the in-Stremio "Switch" chip). */
 function showPicker() {
   if (!pickerWindow) { createPickerWindow(); return; }
   if (pickerWindow.isMinimized()) pickerWindow.restore();
+  // Float above a fullscreen Stremio window — a plain show()/focus() can't draw
+  // over fullscreen on Windows (z-order + focus-steal prevention). 'screen-saver'
+  // is the highest always-on-top level, so it appears above fullscreen apps.
+  pickerWindow.setAlwaysOnTop(true, 'screen-saver');
   pickerWindow.show();
   pickerWindow.focus();
+  pickerWindow.moveTop();
 }
 
 // ---- IPC: the renderer's LoaderBridge maps onto these handlers ----
@@ -120,7 +127,10 @@ ipcMain.handle('profiles:launch', async (_evt, id) => {
   });
 
   // Keep the picker around (minimized) so the user can switch again later.
-  if (pickerWindow) pickerWindow.minimize();
+  if (pickerWindow) {
+    pickerWindow.setAlwaysOnTop(false);
+    pickerWindow.minimize();
+  }
 });
 
 app.whenReady().then(() => {

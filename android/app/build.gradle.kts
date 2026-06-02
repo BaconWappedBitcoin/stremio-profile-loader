@@ -11,8 +11,8 @@ android {
         applicationId = "app.stremio.profileloader"
         minSdk = 26
         targetSdk = 36
-        versionCode = 15
-        versionName = "0.1.14"
+        versionCode = 16
+        versionName = "0.1.15"
     }
 
     // A stable, intentionally-public signing key (committed in keystore/) so every
