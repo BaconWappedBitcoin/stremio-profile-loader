@@ -278,7 +278,10 @@ class StremioActivity : Activity() {
             localStorage.setItem('profile', JSON.stringify(p));
             localStorage.setItem('schema_version', '${StremioApi.SCHEMA_VERSION}');
             location.reload();
-          } catch (e) { console.error('[strloader] switch failed', e); }
+          } catch (e) {
+            console.error('[strloader] switch failed', e);
+            try { AndroidPlayer.toast('Switch failed. Check your connection.'); } catch (_) {}
+          }
         })();
         """.trimIndent()
         webView.evaluateJavascript(js, null)
@@ -338,13 +341,16 @@ class StremioActivity : Activity() {
         setFullscreenUi(false)
     }
 
-    /** JS bridge: the watcher reports entering/leaving Stremio's player view. */
+    /** JS bridge: player-view watcher + toast feedback. */
     inner class PlayerBridge {
         @JavascriptInterface
         fun enter() { runOnUiThread { enterFullscreen() } }
 
         @JavascriptInterface
         fun exit() { runOnUiThread { exitFullscreen() } }
+
+        @JavascriptInterface
+        fun toast(msg: String) { runOnUiThread { toast(msg) } }
     }
 
     @Suppress("DEPRECATION")

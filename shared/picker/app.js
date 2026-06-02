@@ -198,6 +198,14 @@
     return order.length ? order[0] : null;
   }
 
+  function deselectAllIcons() {
+    selectedIcon = null;
+    Array.prototype.forEach.call(els.iconPicker.children, (c) => {
+      c.classList.remove('is-selected');
+      c.setAttribute('aria-checked', 'false');
+    });
+  }
+
   function openModal() {
     editingId = null;
     els.form.reset();
@@ -205,6 +213,7 @@
     els.modalTitle.textContent = 'Add profile';
     els.saveBtn.textContent = 'Sign in & save';
     setCredentialFieldsVisible(true);
+    deselectAllIcons();
     const d = defaultIcon();
     if (d) selectIcon(d);
     els.modal.hidden = false;
@@ -219,7 +228,9 @@
     els.saveBtn.textContent = 'Save';
     setCredentialFieldsVisible(false);
     els.label.value = p.label || '';
-    selectIcon(p.icon || defaultIcon());
+    deselectAllIcons();
+    const iconToSelect = p.icon || defaultIcon();
+    if (iconToSelect) selectIcon(iconToSelect);
     els.modal.hidden = false;
     setTimeout(() => els.label.focus(), 50);
   }
