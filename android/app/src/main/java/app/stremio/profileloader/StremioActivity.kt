@@ -15,6 +15,7 @@ import android.view.View
 import android.view.ViewGroup
 import android.view.WindowInsets
 import android.view.WindowManager
+import android.webkit.JavascriptInterface
 import android.webkit.WebChromeClient
 import android.webkit.WebView
 import android.webkit.WebViewClient
@@ -45,7 +46,10 @@ class StremioActivity : Activity() {
     private var currentId: String? = null
     private var seeded = false
 
-    // HTML5 fullscreen video (the player's fullscreen button) state.
+    // Fullscreen-landscape state. Triggered when Stremio enters the player view
+    // (route-based, see PLAYER_WATCH_JS) or, as a fallback, on an HTML5
+    // fullscreen request (onShowCustomView).
+    private var fsActive = false
     private var customView: View? = null
     private var customViewCallback: WebChromeClient.CustomViewCallback? = null
     private var savedOrientation = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
@@ -101,16 +105,17 @@ class StremioActivity : Activity() {
                 if (customView != null) { onHideCustomView(); return }
                 customView = view
                 customViewCallback = callback
-                savedOrientation = requestedOrientation
                 rootCol.visibility = View.GONE
                 view.setBackgroundColor(Color.BLACK)
                 decorRoot.addView(view, FrameLayout.LayoutParams(MATCH, MATCH))
-                requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
-                setFullscreenUi(true)
+                enterFullscreen()
             }
 
             override fun onHideCustomView() { hideCustomView() }
         }
+
+        // Lets the injected watcher tell us when Stremio is on the player view.
+        webView.addJavascriptInterface(PlayerBridge(), "AndroidPlayer")
 
         val seedJs = buildSeedJs(profileJson)
         webView.webViewClient = object : WebViewClient() {
@@ -119,6 +124,7 @@ class StremioActivity : Activity() {
             }
             override fun onPageFinished(view: WebView, url: String?) {
                 if (!seeded) { seeded = true; view.evaluateJavascript(seedJs, null) }
+                view.evaluateJavascript(PLAYER_WATCH_JS, null)
             }
         }
         webView.loadUrl(STREMIO_WEB_URL)
@@ -281,8 +287,34 @@ class StremioActivity : Activity() {
         customViewCallback?.onCustomViewHidden()
         customViewCallback = null
         rootCol.visibility = View.VISIBLE
+        exitFullscreen()
+    }
+
+    /** Force landscape + immersive + hide our top bar (widescreen playback). */
+    private fun enterFullscreen() {
+        if (fsActive) return
+        fsActive = true
+        savedOrientation = requestedOrientation
+        requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
+        topBar.visibility = View.GONE
+        setFullscreenUi(true)
+    }
+
+    private fun exitFullscreen() {
+        if (!fsActive) return
+        fsActive = false
         requestedOrientation = savedOrientation
+        topBar.visibility = View.VISIBLE
         setFullscreenUi(false)
+    }
+
+    /** JS bridge: the watcher reports entering/leaving Stremio's player view. */
+    inner class PlayerBridge {
+        @JavascriptInterface
+        fun enter() { runOnUiThread { enterFullscreen() } }
+
+        @JavascriptInterface
+        fun exit() { runOnUiThread { exitFullscreen() } }
     }
 
     @Suppress("DEPRECATION")
@@ -353,5 +385,30 @@ class StremioActivity : Activity() {
         const val EXTRA_PROFILE_ID = "profile_id"
         private const val MATCH = ViewGroup.LayoutParams.MATCH_PARENT
         private const val STREMIO_WEB_URL = "https://web.stremio.com/"
+
+        /**
+         * Watches Stremio's hash route and tells the activity to go
+         * landscape/immersive while on the player view (Stremio Web renders the
+         * player in-page and never asks for HTML5 fullscreen, so we drive
+         * orientation ourselves). Reinstalls itself per document.
+         */
+        private const val PLAYER_WATCH_JS = """
+        (function () {
+          if (window.__strloaderPlayerWatch) return;
+          window.__strloaderPlayerWatch = true;
+          function onPlayer() { return (location.hash || '').indexOf('/player') !== -1; }
+          var last = null;
+          function tick() {
+            var p = onPlayer();
+            if (p !== last) {
+              last = p;
+              try { if (p) AndroidPlayer.enter(); else AndroidPlayer.exit(); } catch (e) {}
+            }
+          }
+          window.addEventListener('hashchange', tick);
+          setInterval(tick, 500);
+          setTimeout(tick, 300);
+        })();
+        """
     }
 }
