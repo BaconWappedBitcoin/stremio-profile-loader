@@ -14,6 +14,7 @@
 
 const { app, BrowserWindow, ipcMain } = require('electron');
 const path = require('path');
+const fs = require('fs');
 
 // Resolve the shared/ directory both in dev and when packaged (see extraResources
 // in package.json -> it lands next to the app under resources/shared).
@@ -100,8 +101,16 @@ ipcMain.handle('profiles:launch', async (_evt, id) => {
     settings: { ...api.DEFAULT_SETTINGS },
   };
 
-  // (Re)launch the native Stremio app signed in to this profile.
-  await native.launchWithProfile(profileObject, api.SCHEMA_VERSION);
+  // (Re)launch the native Stremio app signed in to this profile, and inject the
+  // in-app profile selector overlay (lists all profiles for in-place switching).
+  const apiSource = fs.readFileSync(path.join(SHARED_DIR, 'stremio-api.js'), 'utf8');
+  await native.launchWithProfile({
+    profileObject,
+    schemaVersion: api.SCHEMA_VERSION,
+    overlayProfiles: store.allWithKeys(),
+    currentId: id,
+    apiSource,
+  });
 
   // Keep the picker around (minimized) so the user can switch again later.
   if (pickerWindow) pickerWindow.minimize();

@@ -134,8 +134,36 @@ async function waitForStremioTarget(port, timeoutMs = 40000) {
   );
 }
 
-/** Open a CDP websocket, run a sequence of Runtime.evaluate calls, then close. */
-function cdpInject(webSocketDebuggerUrl, profileObject, schemaVersion) {
+// The live CDP connection to the running Stremio window. Kept open for the
+// window's lifetime so the injected overlay re-mounts on every reload.
+let activeCdp = null;
+
+function closeActiveCdp() {
+  if (activeCdp && activeCdp.ws) { try { activeCdp.ws.close(); } catch (_) {} }
+  activeCdp = null;
+}
+
+/**
+ * Build the script injected into every Stremio document: the shared API module
+ * (defines window.StremioApi) + the profile data header + the overlay UI. Uses
+ * string concatenation (not a template literal) so backticks inside apiSource /
+ * overlay are preserved verbatim.
+ */
+function buildOverlaySource(apiSource, profiles, currentId, schemaVersion) {
+  const overlayBody = fs.readFileSync(path.join(__dirname, 'overlay.js'), 'utf8');
+  const header =
+    'var STRLOADER_PROFILES=' + JSON.stringify(profiles) + ';' +
+    'var STRLOADER_CURRENT_ID=' + JSON.stringify(currentId) + ';' +
+    'var STRLOADER_SCHEMA=' + JSON.stringify(schemaVersion) + ';';
+  return '(function(){\n' + apiSource + '\n' + header + '\n' + overlayBody + '\n})();';
+}
+
+/**
+ * Open a CDP websocket (kept open), register the overlay to run on every new
+ * document, then seed the launched profile's session and reload.
+ */
+function setupOverlayAndSeed(webSocketDebuggerUrl, opts) {
+  const { profileObject, schemaVersion, overlayProfiles, currentId, apiSource } = opts;
   return new Promise((resolve, reject) => {
     const ws = new WebSocket(webSocketDebuggerUrl);
     let id = 0;
@@ -143,45 +171,45 @@ function cdpInject(webSocketDebuggerUrl, profileObject, schemaVersion) {
     const send = (method, params) =>
       new Promise((res) => { const mid = ++id; pending.set(mid, res); ws.send(JSON.stringify({ id: mid, method, params })); });
 
-    const seedB64 = Buffer.from(JSON.stringify(profileObject), 'utf8').toString('base64');
-    const expr = `(() => {
-      try {
-        const bytes = Uint8Array.from(atob('${seedB64}'), c => c.charCodeAt(0));
-        const json = new TextDecoder('utf-8').decode(bytes);
-        localStorage.setItem('profile', json);
-        localStorage.setItem('schema_version', '${schemaVersion}');
-        location.reload();
-        return 'ok';
-      } catch (e) { return 'err: ' + e.message; }
-    })()`;
-
-    const timer = setTimeout(() => { try { ws.close(); } catch (_) {} reject(new Error('CDP injection timed out')); }, 15000);
+    const timer = setTimeout(() => { try { ws.close(); } catch (_) {} reject(new Error('CDP setup timed out')); }, 20000);
 
     ws.on('message', (raw) => {
       const msg = JSON.parse(raw.toString());
       if (msg.id && pending.has(msg.id)) { pending.get(msg.id)(msg); pending.delete(msg.id); }
     });
-    ws.on('error', (e) => { clearTimeout(timer); reject(e); });
+    ws.on('error', (e) => { clearTimeout(timer); if (activeCdp && activeCdp.ws === ws) activeCdp = null; reject(e); });
+    ws.on('close', () => { if (activeCdp && activeCdp.ws === ws) activeCdp = null; });
     ws.on('open', async () => {
       try {
+        await send('Page.enable', {});
         await send('Runtime.enable', {});
-        const r = await send('Runtime.evaluate', { expression: expr, awaitPromise: true, returnByValue: true });
+
+        const source = buildOverlaySource(apiSource, overlayProfiles, currentId, schemaVersion);
+        await send('Page.addScriptToEvaluateOnNewDocument', { source });
+
+        // Seed the launched profile, then reload so the registered script runs
+        // on the fresh document (overlay + StremioApi + an authenticated session).
+        const seedB64 = Buffer.from(JSON.stringify(profileObject), 'utf8').toString('base64');
+        const seedExpr =
+          "(function(){try{var b=Uint8Array.from(atob('" + seedB64 + "'),function(c){return c.charCodeAt(0);});" +
+          "localStorage.setItem('profile',new TextDecoder('utf-8').decode(b));" +
+          "localStorage.setItem('schema_version','" + schemaVersion + "');location.reload();}catch(e){}})()";
+        await send('Runtime.evaluate', { expression: seedExpr });
+
         clearTimeout(timer);
-        const val = r && r.result && r.result.result && r.result.result.value;
-        ws.close();
-        if (typeof val === 'string' && val.startsWith('err')) reject(new Error('Injection failed: ' + val));
-        else resolve();
+        activeCdp = { ws };
+        resolve();
       } catch (e) { clearTimeout(timer); reject(e); }
     });
   });
 }
 
 /**
- * Full launch: find exe, restart Stremio with debugging, inject the profile.
- * @param {object} profileObject  the localStorage `profile` object
- * @param {string} schemaVersion
+ * Full launch: find exe, restart Stremio with debugging, inject the profile
+ * session + the in-app profile selector overlay.
+ * @param {object} opts {profileObject, schemaVersion, overlayProfiles, currentId, apiSource}
  */
-async function launchWithProfile(profileObject, schemaVersion) {
+async function launchWithProfile(opts) {
   const exe = findStremioExe();
   if (!exe) {
     throw new Error(
@@ -190,6 +218,7 @@ async function launchWithProfile(profileObject, schemaVersion) {
     );
   }
 
+  closeActiveCdp();
   await killRunningStremio();
   await sleep(800); // let the single-instance lock and streaming server clear
 
@@ -202,7 +231,7 @@ async function launchWithProfile(profileObject, schemaVersion) {
   child.unref();
 
   const target = await waitForStremioTarget(DEBUG_PORT);
-  await cdpInject(target.webSocketDebuggerUrl, profileObject, schemaVersion);
+  await setupOverlayAndSeed(target.webSocketDebuggerUrl, opts);
 }
 
 module.exports = {

@@ -54,6 +54,11 @@ class ProfileStore {
     return this.data.profiles.find((p) => p.id === id) || null;
   }
 
+  /** Profiles with authKeys, for the in-app overlay selector — main process only. */
+  allWithKeys() {
+    return this.data.profiles.map((p) => ({ id: p.id, label: p.label, authKey: p.authKey }));
+  }
+
   add({ label, email, authKey, user, icon }) {
     const profile = {
       id: crypto.randomUUID(),
