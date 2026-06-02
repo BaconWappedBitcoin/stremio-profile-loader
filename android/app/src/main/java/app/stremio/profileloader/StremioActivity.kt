@@ -2,6 +2,7 @@ package app.stremio.profileloader
 
 import android.annotation.SuppressLint
 import android.app.Activity
+import android.content.pm.ActivityInfo
 import android.graphics.Color
 import android.graphics.drawable.ColorDrawable
 import android.graphics.drawable.GradientDrawable
@@ -11,9 +12,11 @@ import android.util.TypedValue
 import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup
+import android.view.WindowManager
 import android.webkit.WebChromeClient
 import android.webkit.WebView
 import android.webkit.WebViewClient
+import android.widget.FrameLayout
 import android.widget.LinearLayout
 import android.widget.PopupWindow
 import android.widget.ScrollView
@@ -34,8 +37,15 @@ class StremioActivity : Activity() {
     private lateinit var stremioApiJs: String
     private lateinit var chipAvatar: TextView
     private lateinit var chipName: TextView
+    private lateinit var rootCol: LinearLayout
+    private lateinit var decorRoot: FrameLayout
     private var currentId: String? = null
     private var seeded = false
+
+    // HTML5 fullscreen video (the player's fullscreen button) state.
+    private var customView: View? = null
+    private var customViewCallback: WebChromeClient.CustomViewCallback? = null
+    private var savedOrientation = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
 
     private val avatarColors = intArrayOf(
         0xFF7B5BF5.toInt(), 0xFF0D9488.toInt(), 0xFFE11D48.toInt(), 0xFFF59E0B.toInt(),
@@ -53,12 +63,16 @@ class StremioActivity : Activity() {
         store = ProfileStore(this)
         stremioApiJs = assets.open("picker/stremio-api.js").bufferedReader().use { it.readText() }
 
-        val rootCol = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        rootCol = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         rootCol.addView(buildTopBar(), LinearLayout.LayoutParams(MATCH, dp(52)))
 
         webView = WebView(this)
         rootCol.addView(webView, LinearLayout.LayoutParams(MATCH, 0, 1f))
-        setContentView(rootCol)
+
+        // Wrap in a FrameLayout so fullscreen video can be overlaid on top.
+        decorRoot = FrameLayout(this)
+        decorRoot.addView(rootCol, FrameLayout.LayoutParams(MATCH, MATCH))
+        setContentView(decorRoot)
 
         updateChip()
 
@@ -68,7 +82,25 @@ class StremioActivity : Activity() {
             mediaPlaybackRequiresUserGesture = false
             userAgentString = userAgentString + " StremioProfileLoader"
         }
-        webView.webChromeClient = WebChromeClient()
+
+        // Handle the player's fullscreen request: show the video full-screen in
+        // landscape (the native app rotates to widescreen; a plain WebChromeClient
+        // would leave it inline/portrait).
+        webView.webChromeClient = object : WebChromeClient() {
+            override fun onShowCustomView(view: View, callback: CustomViewCallback) {
+                if (customView != null) { onHideCustomView(); return }
+                customView = view
+                customViewCallback = callback
+                savedOrientation = requestedOrientation
+                rootCol.visibility = View.GONE
+                view.setBackgroundColor(Color.BLACK)
+                decorRoot.addView(view, FrameLayout.LayoutParams(MATCH, MATCH))
+                requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
+                setFullscreenUi(true)
+            }
+
+            override fun onHideCustomView() { hideCustomView() }
+        }
 
         val seedJs = buildSeedJs(profileJson)
         webView.webViewClient = object : WebViewClient() {
@@ -229,7 +261,36 @@ class StremioActivity : Activity() {
 
     @Deprecated("Deprecated in Java")
     override fun onBackPressed() {
+        if (customView != null) { hideCustomView(); return }
         if (this::webView.isInitialized && webView.canGoBack()) webView.goBack() else super.onBackPressed()
+    }
+
+    private fun hideCustomView() {
+        val v = customView ?: return
+        decorRoot.removeView(v)
+        customView = null
+        customViewCallback?.onCustomViewHidden()
+        customViewCallback = null
+        rootCol.visibility = View.VISIBLE
+        requestedOrientation = savedOrientation
+        setFullscreenUi(false)
+    }
+
+    @Suppress("DEPRECATION")
+    private fun setFullscreenUi(on: Boolean) {
+        if (on) {
+            window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+            window.decorView.systemUiVisibility = (
+                View.SYSTEM_UI_FLAG_LAYOUT_STABLE
+                    or View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
+                    or View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
+                    or View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
+                    or View.SYSTEM_UI_FLAG_FULLSCREEN
+                    or View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY)
+        } else {
+            window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+            window.decorView.systemUiVisibility = View.SYSTEM_UI_FLAG_VISIBLE
+        }
     }
 
     // ---- helpers ----
