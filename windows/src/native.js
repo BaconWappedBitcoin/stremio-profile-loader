@@ -17,32 +17,64 @@
 
 const fs = require('fs');
 const path = require('path');
-const { spawn, execFile } = require('child_process');
+const { spawn, execFile, execFileSync } = require('child_process');
 const WebSocket = require('ws');
 
 const DEBUG_PORT = 9222;
 const TARGET_HOST = '127.0.0.1';
+
+// Shell executables in preference order. stremio-shell-ng.exe is the Stremio 5
+// (WebView2) shell; stremio.exe is the Stremio 4 (QtWebEngine) shell.
+const SHELL_EXE_NAMES = ['stremio-shell-ng.exe', 'stremio.exe', 'Stremio.exe'];
 
 /** Candidate install locations for the native Stremio executable. */
 function stremioCandidates() {
   const LOCALAPPDATA = process.env.LOCALAPPDATA || '';
   const PROGRAMFILES = process.env['ProgramFiles'] || 'C:\\Program Files';
   const PROGRAMFILESX86 = process.env['ProgramFiles(x86)'] || 'C:\\Program Files (x86)';
-  return [
-    process.env.STREMIO_EXE, // explicit override
-    path.join(LOCALAPPDATA, 'Programs', 'LNV', 'Stremio-4', 'stremio.exe'),
-    path.join(LOCALAPPDATA, 'Programs', 'stremio', 'Stremio.exe'),
-    path.join(LOCALAPPDATA, 'Programs', 'stremio-shell-ng', 'Stremio.exe'),
-    path.join(PROGRAMFILES, 'Stremio', 'stremio.exe'),
-    path.join(PROGRAMFILESX86, 'Stremio', 'stremio.exe'),
+  const dirs = [
+    path.join(LOCALAPPDATA, 'Programs', 'Stremio'),          // Stremio 5 (shell-ng)
+    path.join(LOCALAPPDATA, 'Programs', 'LNV', 'Stremio-4'), // Stremio 4
+    path.join(LOCALAPPDATA, 'Programs', 'stremio'),
+    path.join(PROGRAMFILES, 'Stremio'),
+    path.join(PROGRAMFILESX86, 'Stremio'),
+    registryInstallLocation(),
   ].filter(Boolean);
+
+  const list = [];
+  if (process.env.STREMIO_EXE) list.push(process.env.STREMIO_EXE); // explicit override
+  for (const dir of dirs) {
+    for (const name of SHELL_EXE_NAMES) list.push(path.join(dir, name));
+  }
+  return list;
+}
+
+/** Read Stremio's InstallLocation from the Windows uninstall registry, if present. */
+function registryInstallLocation() {
+  if (process.platform !== 'win32') return null;
+  const roots = [
+    'HKCU\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Uninstall',
+    'HKLM\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Uninstall',
+    'HKLM\\SOFTWARE\\WOW6432Node\\Microsoft\\Windows\\CurrentVersion\\Uninstall',
+  ];
+  for (const root of roots) {
+    try {
+      // /s recurses subkeys; find a Stremio entry's InstallLocation value.
+      const out = execFileSync('reg', ['query', root, '/s', '/f', 'Stremio', '/d'], {
+        encoding: 'utf8', windowsHide: true, timeout: 4000,
+      });
+      const m = out.match(/InstallLocation\s+REG_SZ\s+(.+)/i);
+      if (m) return m[1].trim();
+    } catch (_) { /* key missing or reg failed */ }
+  }
+  return null;
 }
 
 /** @returns {string|null} the first existing Stremio exe, or null. */
 function findStremioExe() {
   for (const candidate of stremioCandidates()) {
     try {
-      if (fs.existsSync(candidate)) return candidate;
+      if (candidate && fs.existsSync(candidate)) return candidate;
     } catch (_) { /* ignore */ }
   }
   return null;
@@ -51,10 +83,14 @@ function findStremioExe() {
 function killRunningStremio() {
   return new Promise((resolve) => {
     if (process.platform !== 'win32') { resolve(); return; }
-    // /T kills child processes too (the bundled streaming server).
-    execFile('taskkill', ['/F', '/IM', 'stremio.exe', '/T'], () => {
-      execFile('taskkill', ['/F', '/IM', 'Stremio.exe', '/T'], () => resolve());
-    });
+    // /T kills child processes too (the bundled streaming server / runtime).
+    const names = ['stremio-shell-ng.exe', 'stremio.exe', 'Stremio.exe', 'stremio-runtime.exe'];
+    let i = 0;
+    const next = () => {
+      if (i >= names.length) { resolve(); return; }
+      execFile('taskkill', ['/F', '/IM', names[i++], '/T'], () => next());
+    };
+    next();
   });
 }
 
