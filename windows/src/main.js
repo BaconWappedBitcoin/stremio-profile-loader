@@ -35,7 +35,7 @@ function createPickerWindow() {
     minWidth: 600,
     minHeight: 520,
     backgroundColor: '#0b0b15',
-    title: 'Stremio Profile Loader',
+    title: 'STRLoader',
     autoHideMenuBar: true,
     webPreferences: {
       preload: path.join(__dirname, 'picker-preload.js'),
@@ -53,13 +53,13 @@ function createPickerWindow() {
 
 ipcMain.handle('profiles:list', () => store.list());
 
-ipcMain.handle('profiles:add', async (_evt, { label, email, password }) => {
+ipcMain.handle('profiles:add', async (_evt, { label, email, password, icon }) => {
   if (!label || !email || !password) {
     throw new Error('Please fill in the profile name, email and password.');
   }
   const { authKey, user } = await api.login(email, password);
-  const created = store.add({ label, email, authKey, user });
-  return { id: created.id, label: created.label, email: created.email, avatar: created.avatar };
+  const created = store.add({ label, email, authKey, user, icon });
+  return { id: created.id, label: created.label, email: created.email, avatar: created.avatar, icon: created.icon };
 });
 
 ipcMain.handle('profiles:delete', async (_evt, id) => {

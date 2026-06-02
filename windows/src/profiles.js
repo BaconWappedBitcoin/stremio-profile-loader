@@ -45,6 +45,7 @@ class ProfileStore {
       label: p.label,
       email: p.email,
       avatar: p.avatar || null,
+      icon: p.icon || null,
     }));
   }
 
@@ -53,7 +54,7 @@ class ProfileStore {
     return this.data.profiles.find((p) => p.id === id) || null;
   }
 
-  add({ label, email, authKey, user }) {
+  add({ label, email, authKey, user, icon }) {
     const profile = {
       id: crypto.randomUUID(),
       label,
@@ -61,6 +62,7 @@ class ProfileStore {
       authKey,
       user: user || null,
       avatar: (user && user.avatar) || null,
+      icon: icon || null,
     };
     this.data.profiles.push(profile);
     this._save();

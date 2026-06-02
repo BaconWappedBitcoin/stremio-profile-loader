@@ -3,13 +3,13 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-  <title>Stremio Profile Loader</title>
+  <title>STRLoader</title>
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
   <main class="app">
     <header class="app__header">
-      <h1 class="app__title">Stremio</h1>
+      <h1 class="app__title">STRLoader</h1>
       <p class="app__subtitle">Who's watching?</p>
     </header>
 
@@ -29,6 +29,13 @@
         <span class="field__label">Profile name</span>
         <input id="f-label" class="field__input" type="text" placeholder="e.g. Living room" required maxlength="40" />
       </label>
+
+      <div class="field">
+        <span class="field__label">Icon</span>
+        <div id="icon-picker" class="icon-picker" role="radiogroup" aria-label="Profile icon">
+          <!-- icon options injected here -->
+        </div>
+      </div>
 
       <label class="field">
         <span class="field__label">Stremio email</span>
@@ -50,6 +57,7 @@
     </form>
   </div>
 
+  <script src="icons.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

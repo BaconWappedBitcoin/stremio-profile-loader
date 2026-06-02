@@ -19,8 +19,8 @@
     "electron-builder": "^24.13.3"
   },
   "build": {
-    "appId": "app.stremio.profileloader",
-    "productName": "Stremio Profile Loader",
+    "appId": "app.strloader",
+    "productName": "STRLoader",
     "files": [
       "src/**/*"
     ],

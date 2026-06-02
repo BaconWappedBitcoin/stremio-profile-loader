@@ -1,6 +1,8 @@
-# Stremio Profile Loader
+# STRLoader
 
-Stremio has no built-in profile switching — one app, one logged-in account. This project adds a **"Who's watching?" profile picker** that signs into a chosen Stremio account and opens Stremio already logged in. One monorepo, two apps:
+A **"Who's watching?" profile picker for Stremio.** Stremio has no built-in profile switching — one app, one logged-in account. STRLoader signs into a chosen account and opens Stremio already logged in. One monorepo, two apps:
+
+> Not affiliated with, endorsed by, or sponsored by Stremio. "Stremio" is used only to describe compatibility.
 
 | App | Platform | What it drives | Tech | Status |
 |-----|----------|----------------|------|--------|
@@ -86,7 +88,7 @@ If a stored token ever expires, the loader will tell you to remove and re-add th
 
 - Passwords are used exactly once (at "Add profile") and never written to disk.
 - The stored authKey is a bearer token for that Stremio account — treat the profile file like a password. It lives in the OS per-user app data:
-  - Windows: `%APPDATA%/Stremio Profile Loader/profiles.json`
+  - Windows: `%APPDATA%/STRLoader/profiles.json`
   - Android: app-private `SharedPreferences` (not world-readable)
 - You can revoke a token any time by changing the account's Stremio password.
 

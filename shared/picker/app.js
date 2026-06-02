@@ -23,10 +23,13 @@
     label: $('#f-label'),
     email: $('#f-email'),
     password: $('#f-password'),
+    iconPicker: $('#icon-picker'),
     formError: $('#form-error'),
     saveBtn: $('#save-btn'),
     cancelBtn: $('#cancel-btn'),
   };
+
+  let selectedIcon = null;
 
   function bridge() {
     if (!window.LoaderBridge) {
@@ -46,6 +49,10 @@
   }
 
   function avatarMarkup(p) {
+    if (p.icon && window.LoaderIcons) {
+      const svg = window.LoaderIcons.render(p.icon);
+      if (svg) return svg;
+    }
     if (p.avatar) {
       return `<img src="${escapeAttr(p.avatar)}" alt="" />`;
     }
@@ -121,10 +128,11 @@
     setStatus('Signing in as ' + p.label + '…');
     try {
       await bridge().launch(p.id);
-      // On success the host swaps to Stremio; nothing more to do here.
+      setStatus('Signed in as ' + p.label + '.');
     } catch (e) {
-      card.classList.remove('is-loading');
       setStatus('Could not launch ' + p.label + ': ' + e.message, true);
+    } finally {
+      card.classList.remove('is-loading');
     }
   }
 
@@ -140,10 +148,38 @@
     }
   }
 
+  // ---- Icon picker ----
+  function buildIconPicker() {
+    const order = (window.LoaderIcons && window.LoaderIcons.order) || [];
+    els.iconPicker.innerHTML = '';
+    order.forEach((id) => {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'icon-opt';
+      btn.dataset.icon = id;
+      btn.setAttribute('role', 'radio');
+      btn.setAttribute('aria-label', id);
+      btn.innerHTML = window.LoaderIcons.render(id);
+      btn.addEventListener('click', () => selectIcon(id));
+      els.iconPicker.appendChild(btn);
+    });
+  }
+
+  function selectIcon(id) {
+    selectedIcon = id;
+    Array.prototype.forEach.call(els.iconPicker.children, (c) => {
+      const on = c.dataset.icon === id;
+      c.classList.toggle('is-selected', on);
+      c.setAttribute('aria-checked', on ? 'true' : 'false');
+    });
+  }
+
   // ---- Modal ----
   function openModal() {
     els.form.reset();
     els.formError.hidden = true;
+    const order = (window.LoaderIcons && window.LoaderIcons.order) || [];
+    if (order.length) selectIcon(order[0]);
     els.modal.hidden = false;
     setTimeout(() => els.label.focus(), 50);
   }
@@ -168,6 +204,7 @@
         label: els.label.value.trim(),
         email: els.email.value.trim(),
         password: els.password.value,
+        icon: selectedIcon,
       });
       closeModal();
       await refresh();
@@ -178,6 +215,8 @@
       els.saveBtn.textContent = 'Sign in & save';
     }
   });
+
+  buildIconPicker();
 
   // Boot once the bridge is ready. Electron injects it before load; Android may
   // inject slightly later, so poll briefly.

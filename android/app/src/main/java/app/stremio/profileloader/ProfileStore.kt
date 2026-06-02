@@ -31,6 +31,7 @@ class ProfileStore(context: Context) {
                 put("label", p.optString("label"))
                 put("email", p.optString("email"))
                 put("avatar", p.opt("avatar") ?: JSONObject.NULL)
+                put("icon", p.opt("icon") ?: JSONObject.NULL)
             })
         }
         return out.toString()
@@ -45,7 +46,7 @@ class ProfileStore(context: Context) {
         return null
     }
 
-    fun add(label: String, email: String, authKey: String, user: JSONObject): JSONObject {
+    fun add(label: String, email: String, authKey: String, user: JSONObject, icon: String?): JSONObject {
         val all = readAll()
         val profile = JSONObject().apply {
             put("id", UUID.randomUUID().toString())
@@ -54,6 +55,7 @@ class ProfileStore(context: Context) {
             put("authKey", authKey)
             put("user", user)
             put("avatar", user.opt("avatar") ?: JSONObject.NULL)
+            put("icon", icon ?: JSONObject.NULL)
         }
         all.put(profile)
         writeAll(all)

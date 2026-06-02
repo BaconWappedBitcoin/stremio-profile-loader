@@ -74,7 +74,7 @@ class MainActivity : Activity() {
               catch (e) { return Promise.reject(e); }
             },
             addProfile: function (data) {
-              return defer(function (id) { AndroidBridge.addProfile(id, data.label, data.email, data.password); });
+              return defer(function (id) { AndroidBridge.addProfile(id, data.label, data.email, data.password, data.icon || null); });
             },
             launch: function (profileId) {
               return defer(function (id) { AndroidBridge.launch(id, profileId); });

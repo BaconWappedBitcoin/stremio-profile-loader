@@ -31,19 +31,20 @@ class LoaderBridge(
     }
 
     @JavascriptInterface
-    fun addProfile(callbackId: String, label: String, email: String, password: String) {
+    fun addProfile(callbackId: String, label: String, email: String, password: String, icon: String?) {
         io.execute {
             try {
                 if (label.isBlank() || email.isBlank() || password.isBlank()) {
                     throw StremioApi.ApiException("Please fill in the profile name, email and password.")
                 }
                 val (authKey, user) = StremioApi.login(email.trim(), password)
-                val created = store.add(label.trim(), email.trim(), authKey, user)
+                val created = store.add(label.trim(), email.trim(), authKey, user, icon)
                 val publicJson = JSONObject().apply {
                     put("id", created.optString("id"))
                     put("label", created.optString("label"))
                     put("email", created.optString("email"))
                     put("avatar", created.opt("avatar") ?: JSONObject.NULL)
+                    put("icon", created.opt("icon") ?: JSONObject.NULL)
                 }
                 settle(callbackId, true, publicJson.toString())
             } catch (e: Exception) {
