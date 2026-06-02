@@ -92,10 +92,13 @@ class MainActivity : Activity() {
               return api().buildProfile(authKey).then(function (profile) {
                 // A WebView has no local streaming server, so pre-dismiss the
                 // "Streaming server is not available" nag (debrid/HTTP addons
-                // don't need it).
+                // don't need it). Stremio shows it whenever this date is in the
+                // past/null, and its own "Don't show again" sets now + 50 years.
                 try {
                   if (profile && profile.settings) {
-                    profile.settings.streamingServerWarningDismissed = '2020-01-01T00:00:00Z';
+                    var dismiss = new Date();
+                    dismiss.setFullYear(dismiss.getFullYear() + 50);
+                    profile.settings.streamingServerWarningDismissed = dismiss.toISOString();
                   }
                 } catch (e) {}
                 AndroidBridge.launch(id, JSON.stringify(profile));
