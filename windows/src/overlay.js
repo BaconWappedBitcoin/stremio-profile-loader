@@ -51,9 +51,10 @@
     var cid = currentId();
     var cur = byId(cid);
 
-    // Bottom-right: the top-right corner is the OS window controls + the title-bar
-    // drag region (clicks there get eaten as window-drag). no-drag keeps it clickable.
-    var wrap = el('div', 'position:fixed;bottom:16px;right:16px;z-index:2147483647;font-family:sans-serif;-webkit-app-region:no-drag;');
+    // Bottom-center: the window corners are OS resize grips and the top strip is
+    // the title-bar drag region — clicks there are eaten by the OS before they
+    // reach the page. Center-bottom is clear of all of that. no-drag for safety.
+    var wrap = el('div', 'position:fixed;bottom:22px;left:50%;transform:translateX(-50%);z-index:2147483647;font-family:sans-serif;-webkit-app-region:no-drag;');
     wrap.id = 'strloader-overlay';
 
     var chip = el('div', 'display:flex;align-items:center;gap:8px;background:rgba(17,17,31,0.92);border:1px solid #2a2a44;border-radius:22px;padding:5px 10px 5px 6px;cursor:pointer;box-shadow:0 4px 14px rgba(0,0,0,0.45);');
@@ -62,7 +63,7 @@
     chip.appendChild(el('span', 'color:#a9a9c7;font-size:11px;margin-left:2px;', '▾'));
     wrap.appendChild(chip);
 
-    var menu = el('div', 'position:absolute;bottom:46px;right:0;min-width:210px;max-height:70vh;overflow:auto;background:#16162a;border:1px solid #2a2a44;border-radius:12px;padding:6px;box-shadow:0 12px 34px rgba(0,0,0,0.55);display:none;');
+    var menu = el('div', 'position:absolute;bottom:46px;left:50%;transform:translateX(-50%);min-width:210px;max-height:70vh;overflow:auto;background:#16162a;border:1px solid #2a2a44;border-radius:12px;padding:6px;box-shadow:0 12px 34px rgba(0,0,0,0.55);display:none;');
     PROFILES.forEach(function (p) {
       var row = el('div', 'display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:8px;cursor:pointer;');
       row.onmouseenter = function () { row.style.background = '#20203a'; };
@@ -77,6 +78,16 @@
 
     chip.onclick = function (ev) { ev.stopPropagation(); menu.style.display = (menu.style.display === 'none' ? 'block' : 'none'); };
     document.addEventListener('click', function (ev) { if (!wrap.contains(ev.target)) menu.style.display = 'none'; });
+
+    // Hide the selector while a video is playing (the player route).
+    function updateVisibility() {
+      var onPlayer = (location.hash || '').indexOf('/player') !== -1;
+      wrap.style.display = onPlayer ? 'none' : '';
+      if (onPlayer) menu.style.display = 'none';
+    }
+    window.addEventListener('hashchange', updateVisibility);
+    setInterval(updateVisibility, 600);
+    updateVisibility();
 
     document.body.appendChild(wrap);
   }
