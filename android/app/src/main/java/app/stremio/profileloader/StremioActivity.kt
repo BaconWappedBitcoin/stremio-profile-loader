@@ -277,7 +277,19 @@ class StremioActivity : Activity() {
     @Deprecated("Deprecated in Java")
     override fun onBackPressed() {
         if (customView != null) { hideCustomView(); return }
-        if (this::webView.isInitialized && webView.canGoBack()) webView.goBack() else super.onBackPressed()
+        if (!this::webView.isInitialized) { super.onBackPressed(); return }
+        // Stremio is an SPA, so WebView.canGoBack() is unreliable. Decide by route:
+        // on the player (or any inner page) Back goes to Stremio's home; only when
+        // already at home does Back leave (to the picker). The route watcher then
+        // restores portrait when we leave the player.
+        webView.evaluateJavascript("(location.hash||'')") { raw ->
+            val hash = (raw ?: "").trim('"')
+            val atHome = hash.isEmpty() || hash == "#" || hash == "#/" || hash.contains("/board")
+            runOnUiThread {
+                if (atHome) finish()
+                else webView.evaluateJavascript("location.hash='#/board';", null)
+            }
+        }
     }
 
     private fun hideCustomView() {
