@@ -7,8 +7,12 @@
   "license": "MIT",
   "scripts": {
     "start": "electron .",
+    "doctor": "node scripts/doctor.js",
     "dist": "electron-builder",
     "pack": "electron-builder --dir"
+  },
+  "dependencies": {
+    "ws": "^8.18.0"
   },
   "devDependencies": {
     "electron": "^31.7.7",

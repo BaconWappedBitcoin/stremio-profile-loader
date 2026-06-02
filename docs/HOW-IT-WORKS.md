@@ -1,8 +1,9 @@
 # How it works
 
-Stremio's account lives in **Stremio Web** (`web.stremio.com`), whose login state is held in the browser's `localStorage` under the key `profile`. The desktop and Android *official* apps keep that state in storage we can't safely touch (an embedded LevelDB on desktop; private app storage — root-only — on Android).
+Every Stremio client — web, desktop, Android — is a thin shell around the same web UI, and its login lives in that UI's `localStorage` under the key `profile`. The loader's whole job is to put the right `profile` value in front of the right Stremio before it boots. *How* it reaches that `localStorage` differs per platform:
 
-So instead of fighting the official apps, this loader wraps Stremio Web itself and controls that `localStorage` directly.
+- **Windows (native app):** the desktop shell embeds a Chromium-family browser engine (QtWebEngine, or WebView2 in newer builds). We restart it with **remote debugging** enabled, attach over the Chrome DevTools Protocol, write `localStorage` directly, and reload. This drives the **real installed app**, so torrents/streaming server work normally.
+- **Android (web wrapper):** the official Android app is closed-source and sandboxed (root-only storage), so it can't be driven externally. Instead our app embeds Stremio Web in a `WebView` and seeds `localStorage` there.
 
 ## The flow
 
@@ -20,8 +21,8 @@ So instead of fighting the official apps, this loader wraps Stremio Web itself a
 │ 2. Fetch the account's addon collection                  │
 │ 3. Assemble the full `profile` object (auth+addons+      │
 │    addonsLocked+settings)                                 │
-│ 4. Open web.stremio.com with that object pre-seeded into  │
-│    localStorage BEFORE Stremio's scripts run             │
+│ 4. Get that `profile` object into the target Stremio's    │
+│    localStorage (native app via CDP / WebView via JS)    │
 └─────────────────────────────────────────────────────────┘
        ▼
    Stremio loads already signed in to the chosen account.
@@ -59,20 +60,29 @@ LoaderBridge.deleteProfile(id)
 LoaderBridge.launch(id)          // seeds the session and opens Stremio
 ```
 
-| | Windows (Electron) | Android (Kotlin) |
+| | Windows (Electron launcher) | Android (Kotlin) |
 |---|---|---|
 | Picker UI | renderer `BrowserWindow` loads `shared/picker` | `WebView` loads `picker/` from assets |
 | Bridge | `contextBridge` + IPC (`picker-preload.js`) | `addJavascriptInterface` + a JS shim (`MainActivity.BRIDGE_JS`) |
 | Login / API | `shared/stremio-api.js` in the main process (no CORS) | `StremioApi.kt` (HttpURLConnection) |
 | Storage | `profiles.json` in `userData` | `SharedPreferences` |
-| Seeding | new `BrowserWindow` with `stremio-preload.js` that sets `localStorage` before page scripts (`contextIsolation:false`) | `StremioActivity` sets `localStorage` on first load, then reloads once |
+| Target | the **native** `stremio.exe` | embedded **Stremio Web** in a `WebView` |
+| Seeding | `native.js`: restart Stremio with remote debugging, attach over CDP, set `localStorage`, reload | `StremioActivity` sets `localStorage` on first load, then reloads once |
 
-### Seeding timing
+### Windows: driving the native app (`native.js`)
 
-- **Electron:** the Stremio window uses a preload that runs *before* the page's own JavaScript, so it sets `localStorage` and Stremio reads an authenticated profile on first parse. The window uses a per-profile persistent session partition (`persist:stremio-<id>`), so profiles stay isolated.
-- **Android:** a `WebView` can't reliably inject before page scripts, so on the first `onPageFinished` we write `localStorage` and call `location.reload()` once. The reloaded page then has the session present before stremio-core runs.
+1. **Find** the installed `stremio.exe` (common install paths, or the `STREMIO_EXE` override).
+2. **Restart it with debugging.** The shell is single-instance, so we `taskkill` any running Stremio, then `spawn` it with two env vars set — `QTWEBENGINE_REMOTE_DEBUGGING=9222` (Qt shell) and `WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS=--remote-debugging-port=9222` (WebView2 shell). Whichever engine the build uses opens the DevTools port.
+3. **Attach & inject.** Poll `http://127.0.0.1:9222/json/list` for the Stremio web-UI page target, open its CDP websocket, and `Runtime.evaluate` a snippet that writes `localStorage.profile` + `schema_version` and calls `location.reload()`.
+
+`npm run doctor` runs steps 1–2 and reports whether the port opens — the one thing that varies between Stremio builds.
+
+### Android: seeding the WebView
+
+A `WebView` can't reliably inject before page scripts, so on the first `onPageFinished` we write `localStorage` and call `location.reload()` once. The reloaded page has the session present before stremio-core runs.
 
 ## Limitations
 
-- **Torrent (P2P) streaming** depends on a local streaming server (`http://127.0.0.1:11470`). On desktop you can run the standalone *Stremio Service* and it'll be used automatically. On Android there's no bundled server, so use debrid/HTTP addons.
-- If Stremio Web significantly changes how it persists sessions, the seeding shape may need updating — it's centralised in `shared/stremio-api.js` (`DEFAULT_SETTINGS`, `SCHEMA_VERSION`) and `StremioApi.kt`.
+- **Windows** depends on the native shell exposing remote debugging. Most Chromium/Qt/WebView2 builds honour the env vars above, but a hardened build could disable it — hence `doctor`. If that ever fails, the fallback is seeding the shell's `localStorage` LevelDB on disk while the app is closed (more fragile, not implemented).
+- **Android torrent (P2P) streaming** needs a local streaming server (`http://127.0.0.1:11470`) that a WebView can't provide, so the Android app targets debrid/HTTP addons. (The Windows native app bundles its own server, so torrents work there.)
+- If Stremio changes how it persists sessions, the seeded shape is centralised in `shared/stremio-api.js` (`DEFAULT_SETTINGS`, `SCHEMA_VERSION`) and `StremioApi.kt`.

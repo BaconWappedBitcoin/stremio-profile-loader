@@ -2,23 +2,26 @@
 
 Stremio has no built-in profile switching — one app, one logged-in account. This project adds a **"Who's watching?" profile picker** that signs into a chosen Stremio account and opens Stremio already logged in. One monorepo, two apps:
 
-| App | Platform | Tech | Status |
-|-----|----------|------|--------|
-| [`windows/`](windows/) | Windows / Linux desktop | Electron | ✅ runs & verified |
-| [`android/`](android/) | Android phone / tablet / TV | Kotlin WebView | ✅ builds (APK) |
+| App | Platform | What it drives | Tech | Status |
+|-----|----------|----------------|------|--------|
+| [`windows/`](windows/) | Windows desktop | the **native** Stremio app | Electron launcher | ✅ runs; native injection needs verifying on a real install (`npm run doctor`) |
+| [`android/`](android/) | Android phone / tablet / TV | a wrapped **Stremio Web** session | Kotlin WebView | ✅ builds (APK) |
 
-> **How it works in one line:** you add each profile once (email + password); the loader signs in via the Stremio API, stores only a revocable login token, and on launch pre-seeds that session into **Stremio Web** so it boots straight into your account. Your password is never stored.
+> **How it works in one line:** you add each profile once (email + password); the loader signs in via the Stremio API, stores only a revocable login token, and on launch seeds that session into Stremio so it opens straight into your account. Your password is never stored.
 
-See [docs/HOW-IT-WORKS.md](docs/HOW-IT-WORKS.md) for the full mechanism and [docs/STREMIO-API.md](docs/STREMIO-API.md) for the API/storage contract.
+The two platforms reach Stremio differently — see below — but both share the same picker UI and login logic. Full details in [docs/HOW-IT-WORKS.md](docs/HOW-IT-WORKS.md); the API/storage contract is in [docs/STREMIO-API.md](docs/STREMIO-API.md).
 
 ---
 
 ## What it is (and isn't)
 
-- ✅ A launcher that wraps **[Stremio Web](https://web.stremio.com)** with a profile picker. It is **not** affiliated with Stremio.
-- ✅ Best suited to **debrid / HTTP-addon** setups (Real-Debrid, Premiumize, Torrentio+debrid, direct HTTP addons), which work fully inside the web app with no local server.
-- ⚠️ **Torrent (P2P) streaming** needs Stremio's local *streaming server*. The seeded profile already points at `http://127.0.0.1:11470`, so if you run the standalone **Stremio Service** on the same machine the desktop app will use it. On Android there is no bundled server, so plain torrent streaming is a known limitation.
-- 🔓 Stores only a Stremio **authKey** (a revocable session token) per profile — never your password.
+Not affiliated with or endorsed by Stremio. Stores only a Stremio **authKey** (a revocable session token) per profile — never your password.
+
+**Windows → drives the real native app.** Picking a profile (re)starts the installed `stremio.exe` with its embedded browser engine's remote-debugging enabled, attaches over the Chrome DevTools Protocol, seeds the chosen session into `localStorage`, and reloads — so your **native** Stremio opens signed into that account. Because it's the native app, **torrent (P2P) streaming and the bundled streaming server work normally.** Switching profiles = relaunch into the other account (not a live in-app switch).
+
+> ⚠️ This relies on the native shell exposing remote debugging. Builds vary, so run `npm run doctor` on your machine first — it tells you whether your Stremio can be driven this way.
+
+**Android → wraps Stremio Web.** Android's official Stremio app is closed-source and sandboxed, so no external launcher can change its profile without root. Instead the Android app embeds a Stremio Web session and seeds the chosen profile into it. Best suited to **debrid / HTTP-addon** setups (Real-Debrid, Premiumize, Torrentio+debrid, direct HTTP addons); plain torrent P2P needs a local streaming server that a WebView can't provide.
 
 ## Repository layout
 
@@ -30,7 +33,9 @@ stremio-profile-loader/
 │       ├── index.html
 │       ├── styles.css
 │       └── app.js          # talks only to window.LoaderBridge
-├── windows/                # Electron desktop app
+├── windows/                # Electron launcher that drives the native Stremio app
+│   ├── src/native.js       #   finds Stremio, restarts it with debugging, injects via CDP
+│   └── scripts/doctor.js   #   `npm run doctor` — checks your install is drivable
 ├── android/                # Kotlin WebView app (phone/tablet/TV)
 └── docs/
 ```
@@ -39,14 +44,19 @@ Both apps render the **same** picker UI and expose the **same** `window.LoaderBr
 
 ## Quick start
 
-### Windows / desktop (Electron)
+### Windows (Electron launcher + native Stremio app)
+
+Requires the official **Stremio desktop app** installed.
 
 ```bash
 cd windows
 npm install
-npm start              # launch the picker
-npm run dist           # build an installer (NSIS on Windows / AppImage on Linux)
+npm run doctor         # FIRST: verify your Stremio install can be driven
+npm start              # launch the profile picker
+npm run dist           # build an installer (NSIS)
 ```
+
+If `npm run doctor` reports the DevTools port never opened, your Stremio build doesn't expose remote debugging — [open an issue](../../issues) with your version (Settings → About) so the injection method can be adapted.
 
 ### Android
 
@@ -62,10 +72,13 @@ Requires Android SDK with **API 36** + **build-tools 36.0.0** (AGP 8.9.1 / Gradl
 
 ## Usage
 
-1. Launch the app — you'll see the profile picker.
+1. Launch the loader — you'll see the profile picker.
 2. **Add profile** → give it a name, enter the Stremio email + password. The loader signs in once and stores the returned token.
-3. Click a profile → Stremio opens already signed in to that account.
-4. Remove a profile with the × on its card (this only deletes it locally; your Stremio account is untouched).
+3. Click a profile:
+   - **Windows:** any running Stremio is closed and the native app relaunches signed into that account.
+   - **Android:** Stremio Web opens signed into that account.
+4. To switch, return to the picker and pick another profile (Windows relaunches the native app).
+5. Remove a profile with the × on its card (this only deletes it locally; your Stremio account is untouched).
 
 If a stored token ever expires, the loader will tell you to remove and re-add that profile.
 
