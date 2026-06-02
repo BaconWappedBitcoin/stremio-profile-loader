@@ -90,6 +90,14 @@ class MainActivity : Activity() {
               var authKey = AndroidBridge.getAuthKey(id);
               if (!authKey) return Promise.reject(new Error('Profile not found.'));
               return api().buildProfile(authKey).then(function (profile) {
+                // A WebView has no local streaming server, so pre-dismiss the
+                // "Streaming server is not available" nag (debrid/HTTP addons
+                // don't need it).
+                try {
+                  if (profile && profile.settings) {
+                    profile.settings.streamingServerWarningDismissed = '2020-01-01T00:00:00Z';
+                  }
+                } catch (e) {}
                 AndroidBridge.launch(id, JSON.stringify(profile));
                 return null;
               });

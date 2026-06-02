@@ -4,17 +4,20 @@ import android.annotation.SuppressLint
 import android.app.Activity
 import android.os.Bundle
 import android.util.Base64
+import android.view.Gravity
+import android.view.ViewGroup
 import android.webkit.WebChromeClient
 import android.webkit.WebView
 import android.webkit.WebViewClient
+import android.widget.FrameLayout
+import android.widget.ImageButton
+import android.widget.ImageView
 
 /**
  * Loads Stremio Web with the chosen profile's session pre-seeded into
- * localStorage, so it boots already signed in.
- *
- * Seeding strategy: on the first page load we write `profile` + `schema_version`
- * to localStorage and reload once. On the reloaded page the session is present
- * before stremio-core runs, so it deserializes an authenticated profile.
+ * localStorage, so it boots already signed in. A floating "switch profile"
+ * button returns to the picker (Stremio itself has no profile switching, and
+ * system Back navigates Stremio's own history first).
  */
 class StremioActivity : Activity() {
 
@@ -28,14 +31,34 @@ class StremioActivity : Activity() {
         val profileJson = intent.getStringExtra(EXTRA_PROFILE_JSON)
         if (profileJson.isNullOrBlank()) { finish(); return }
 
+        val root = FrameLayout(this)
         webView = WebView(this)
-        setContentView(webView)
+        root.addView(
+            webView,
+            FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)
+        )
+
+        // Floating "switch profile" button -> back to the picker.
+        val switchBtn = ImageButton(this).apply {
+            setImageResource(R.drawable.ic_switch)
+            setBackgroundResource(R.drawable.switch_bg)
+            scaleType = ImageView.ScaleType.FIT_CENTER
+            setPadding(dp(10), dp(10), dp(10), dp(10))
+            contentDescription = "Switch profile"
+            setOnClickListener { finish() }
+        }
+        val size = dp(46)
+        root.addView(switchBtn, FrameLayout.LayoutParams(size, size).apply {
+            gravity = Gravity.TOP or Gravity.START
+            setMargins(dp(12), dp(12), 0, 0)
+        })
+
+        setContentView(root)
 
         webView.settings.apply {
             javaScriptEnabled = true
             domStorageEnabled = true
             mediaPlaybackRequiresUserGesture = false
-            // A desktop-ish UA gives the full Stremio Web experience on tablets/TV.
             userAgentString = userAgentString + " StremioProfileLoader"
         }
         webView.webChromeClient = WebChromeClient()
@@ -57,6 +80,8 @@ class StremioActivity : Activity() {
     override fun onBackPressed() {
         if (this::webView.isInitialized && webView.canGoBack()) webView.goBack() else super.onBackPressed()
     }
+
+    private fun dp(value: Int): Int = (value * resources.displayMetrics.density).toInt()
 
     private fun buildSeedJs(profileJson: String): String {
         val b64 = Base64.encodeToString(profileJson.toByteArray(Charsets.UTF_8), Base64.NO_WRAP)
