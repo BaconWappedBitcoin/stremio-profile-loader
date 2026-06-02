@@ -53,6 +53,7 @@ class LoaderBridge(
         activity.runOnUiThread {
             val intent = Intent(activity, StremioActivity::class.java)
             intent.putExtra(StremioActivity.EXTRA_PROFILE_JSON, profileJson)
+            intent.putExtra(StremioActivity.EXTRA_PROFILE_ID, id)
             activity.startActivity(intent)
         }
     }
