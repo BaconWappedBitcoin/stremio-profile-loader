@@ -6,12 +6,14 @@ import android.content.pm.ActivityInfo
 import android.graphics.Color
 import android.graphics.drawable.ColorDrawable
 import android.graphics.drawable.GradientDrawable
+import android.os.Build
 import android.os.Bundle
 import android.util.Base64
 import android.util.TypedValue
 import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup
+import android.view.WindowInsets
 import android.view.WindowManager
 import android.webkit.WebChromeClient
 import android.webkit.WebView
@@ -37,6 +39,7 @@ class StremioActivity : Activity() {
     private lateinit var stremioApiJs: String
     private lateinit var chipAvatar: TextView
     private lateinit var chipName: TextView
+    private lateinit var topBar: View
     private lateinit var rootCol: LinearLayout
     private lateinit var decorRoot: FrameLayout
     private var currentId: String? = null
@@ -64,7 +67,8 @@ class StremioActivity : Activity() {
         stremioApiJs = assets.open("picker/stremio-api.js").bufferedReader().use { it.readText() }
 
         rootCol = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
-        rootCol.addView(buildTopBar(), LinearLayout.LayoutParams(MATCH, dp(52)))
+        topBar = buildTopBar()
+        rootCol.addView(topBar, LinearLayout.LayoutParams(MATCH, ViewGroup.LayoutParams.WRAP_CONTENT))
 
         webView = WebView(this)
         rootCol.addView(webView, LinearLayout.LayoutParams(MATCH, 0, 1f))
@@ -73,6 +77,17 @@ class StremioActivity : Activity() {
         decorRoot = FrameLayout(this)
         decorRoot.addView(rootCol, FrameLayout.LayoutParams(MATCH, MATCH))
         setContentView(decorRoot)
+
+        // Android 15+ draws edge-to-edge; pad the top bar below the status bar so
+        // it (and the profile chip) don't sit under the clock/battery.
+        val baseTopPad = topBar.paddingTop
+        decorRoot.setOnApplyWindowInsetsListener { _, insets ->
+            val statusTop = if (Build.VERSION.SDK_INT >= 30)
+                insets.getInsets(WindowInsets.Type.statusBars()).top
+            else @Suppress("DEPRECATION") insets.systemWindowInsetTop
+            topBar.setPadding(topBar.paddingLeft, baseTopPad + statusTop, topBar.paddingRight, topBar.paddingBottom)
+            insets
+        }
 
         updateChip()
 
@@ -120,7 +135,7 @@ class StremioActivity : Activity() {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
             setBackgroundColor(0xFF11111F.toInt())
-            setPadding(dp(14), 0, dp(10), 0)
+            setPadding(dp(14), dp(8), dp(10), dp(8))
         }
         val brand = TextView(this).apply {
             text = "STRLoader"
