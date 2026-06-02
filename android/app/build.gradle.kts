@@ -35,6 +35,9 @@ android {
 // assets at build time. The picker then lives at assets/picker/ inside the APK.
 val copyPicker by tasks.registering(Copy::class) {
     from(rootProject.file("../shared/picker"))
+    // The shared API module is fetched from inside the WebView (browser network
+    // stack) so logins use the same path that successfully loads Stremio.
+    from(rootProject.file("../shared/stremio-api.js"))
     into(layout.buildDirectory.dir("generated/pickerAssets/picker"))
 }
 
