@@ -7,7 +7,7 @@ A **"Who's watching?" profile picker for Stremio.** Stremio has no built-in prof
 | App | Platform | What it drives | Tech | Status |
 |-----|----------|----------------|------|--------|
 | [`windows/`](windows/) | Windows desktop | the **native** Stremio app | Electron launcher | ✅ verified driving native Stremio 5 |
-| [`android/`](android/) | Android phone / tablet / TV | a wrapped **Stremio Web** session | Kotlin WebView | ✅ working, with an in-app profile switcher |
+| [`android/`](android/) | Android phone / tablet / TV | a wrapped **Stremio Web** session | Kotlin WebView | ✅ in-app switcher, landscape playback, runs on Android/Google TV |
 
 > **How it works in one line:** you add each profile once (email + password); the loader signs in via the Stremio API, stores only a revocable login token, and on launch seeds that session into Stremio so it opens straight into your account. Your password is never stored.
 
@@ -19,9 +19,24 @@ The "Who's watching?" picker — the same UI on Windows and Android:
 
 ![STRLoader profile picker](media/picker.png)
 
+<table>
+<tr>
+<td valign="top">
+
 Adding a profile, with open-source [Lucide](https://lucide.dev) icons. Only a revocable login token is stored — never your password:
 
-<img src="media/add-profile.png" alt="Add a profile" width="360" />
+<img src="media/add-profile.png" alt="Add a profile" width="320" />
+
+</td>
+<td valign="top">
+
+On Android, the chosen profile loads inside Stremio with a STRLoader top bar (active profile + switcher):
+
+<img src="media/android.png" alt="STRLoader running on Android" width="240" />
+
+</td>
+</tr>
+</table>
 
 ## Download
 
@@ -39,11 +54,11 @@ Prefer to build from source? See [Quick start](#quick-start).
 
 Not affiliated with or endorsed by Stremio. Stores only a Stremio **authKey** (a revocable session token) per profile — never your password.
 
-**Windows → drives the real native app.** Picking a profile (re)starts the installed `stremio.exe` with its embedded browser engine's remote-debugging enabled, attaches over the Chrome DevTools Protocol, seeds the chosen session into `localStorage`, and reloads — so your **native** Stremio opens signed into that account. Because it's the native app, **torrent (P2P) streaming and the bundled streaming server work normally.** Switching profiles = relaunch into the other account (not a live in-app switch).
+**Windows → drives the real native app.** Picking a profile (re)starts the installed `stremio.exe` with its embedded browser engine's remote-debugging enabled, attaches over the Chrome DevTools Protocol, seeds the chosen session into `localStorage`, and reloads — so your **native** Stremio opens signed into that account. Because it's the native app, **torrent (P2P) streaming and the bundled streaming server work normally.** A small **Switch** chip is injected at the bottom of Stremio; clicking it reopens the picker so you can change profiles without hunting for the launcher window. (Switching is a relaunch into the other account, not a live in-app swap.)
 
 > ⚠️ This relies on the native shell exposing remote debugging. Builds vary, so run `npm run doctor` on your machine first — it tells you whether your Stremio can be driven this way.
 
-**Android → wraps Stremio Web.** Android's official Stremio app is closed-source and sandboxed, so no external launcher can change its profile without root. Instead the Android app embeds a Stremio Web session and seeds the chosen profile into it. A slim top bar shows the active profile and lets you **switch profiles in place** (Netflix-style selector) without leaving the app. Best suited to **debrid / HTTP-addon** setups (Real-Debrid, Premiumize, Torrentio+debrid, direct HTTP addons); plain torrent P2P needs a local streaming server that a WebView can't provide.
+**Android → wraps Stremio Web.** Android's official Stremio app is closed-source and sandboxed, so no external launcher can change its profile without root. Instead the Android app embeds a Stremio Web session and seeds the chosen profile into it. A slim top bar shows the active profile and lets you **switch profiles in place** (Netflix-style selector) without leaving the app. Video plays **fullscreen in landscape**, and **Back** returns to Stremio's home (not out to the picker). Best suited to **debrid / HTTP-addon** setups (Real-Debrid, Premiumize, Torrentio+debrid, direct HTTP addons); plain torrent P2P needs a local streaming server that a WebView can't provide. Installs on phones, tablets, **Android TV and Google TV** (e.g. ONN, Chromecast, Fire TV).
 
 ## Repository layout
 
@@ -110,7 +125,27 @@ The APK is signed with a **stable, committed key** (see [`android/keystore/`](an
 adb install -r STRLoader.apk
 ```
 
-**Android TV** (no file manager): install **Downloader** (by AFTVnews) from the TV's store and point it at the `STRLoader.apk` release URL, or use ADB over the network (`adb connect <TV-IP>:5555` then `adb install -r STRLoader.apk`).
+> 💡 The latest APK is always at this stable URL (handy for the steps below):
+> `https://github.com/BaconWappedBitcoin/stremio-profile-loader/releases/latest/download/STRLoader.apk`
+
+**ONN (Walmart) / Google TV / Android TV boxes & sticks**
+
+These have no browser or file manager, so use the **Downloader** app:
+
+1. **Unlock Developer options:** Settings → System → About → scroll to **Build** (or "Android TV OS build") and click it **7 times**.
+2. **Install Downloader** (by AFTVnews) from the Google Play Store on the device.
+3. **Allow it to install apps:** Settings → Apps → Security & restrictions → **Unknown sources** → turn on **Downloader**. (On some ONN boxes this prompt appears the first time you install instead.)
+4. Open **Downloader**, and in the URL box enter the stable APK link above (the on-screen keyboard works, or use a URL shortener you make yourself). Press **Go**.
+5. It downloads, then shows **Install** → confirm. If **Play Protect** warns, choose **Install anyway** / **More details → Install**.
+6. Launch **STRLoader** from your apps row (it appears in the Google TV / Android TV launcher). Add a profile with the on-screen keyboard, then select it.
+
+**ADB over the network** (alternative, e.g. for ONN or Fire TV):
+
+```bash
+# On the device: Settings → System → Developer options → enable "USB/Network debugging".
+adb connect <TV-IP>:5555      # find the IP in Settings → Network/About
+adb install -r STRLoader.apk
+```
 
 ## Usage
 
@@ -121,7 +156,7 @@ adb install -r STRLoader.apk
    - **Android:** Stremio Web opens signed into that account, with a top bar showing who's active.
 4. To switch profiles:
    - **Android:** tap the profile chip in the top bar and pick another — it switches in place. "Manage profiles…" opens the picker to add/edit/remove.
-   - **Windows:** return to the picker and pick another profile (the native app relaunches).
+   - **Windows:** click the **Switch** chip at the bottom of Stremio (or bring the picker window back up) and pick another profile — the native app relaunches into it.
 5. Edit a profile's name/icon with the ✏️ on its card, or remove it with the × (removing only deletes it locally; your Stremio account is untouched).
 
 If a stored token ever expires, the loader will tell you to remove and re-add that profile.
