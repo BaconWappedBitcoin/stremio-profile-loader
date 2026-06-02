@@ -11,13 +11,30 @@ android {
         applicationId = "app.stremio.profileloader"
         minSdk = 26
         targetSdk = 36
-        versionCode = 2
-        versionName = "0.1.1"
+        versionCode = 3
+        versionName = "0.1.2"
+    }
+
+    // A stable, intentionally-public signing key (committed in keystore/) so every
+    // build — local or CI — shares one signature and installs as an update rather
+    // than failing with "App not installed". This is NOT a secret: it only provides
+    // upgrade continuity for a sideloaded app, it doesn't protect anything.
+    signingConfigs {
+        create("shared") {
+            storeFile = rootProject.file("keystore/strloader.jks")
+            storePassword = "strloader"
+            keyAlias = "strloader"
+            keyPassword = "strloader"
+        }
     }
 
     buildTypes {
+        debug {
+            signingConfig = signingConfigs.getByName("shared")
+        }
         release {
             isMinifyEnabled = false
+            signingConfig = signingConfigs.getByName("shared")
         }
     }
 
