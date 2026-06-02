@@ -9,6 +9,7 @@ import android.graphics.drawable.GradientDrawable
 import android.os.Build
 import android.os.Bundle
 import android.util.Base64
+import android.util.Log
 import android.util.TypedValue
 import android.view.Gravity
 import android.view.View
@@ -62,6 +63,7 @@ class StremioActivity : Activity() {
         if (profileJson.isNullOrBlank()) { finish(); return }
         currentId = intent.getStringExtra(EXTRA_PROFILE_ID)
 
+        WebView.setWebContentsDebuggingEnabled(true)
         store = ProfileStore(this)
         stremioApiJs = assets.open("picker/stremio-api.js").bufferedReader().use { it.readText() }
 
@@ -128,6 +130,14 @@ class StremioActivity : Activity() {
             }
         }
         webView.loadUrl(STREMIO_WEB_URL)
+
+        // API 33+ routes Back through OnBackInvokedCallback (onBackPressed isn't
+        // called), so register one to drive our route-based Back handling.
+        if (Build.VERSION.SDK_INT >= 33) {
+            onBackInvokedDispatcher.registerOnBackInvokedCallback(
+                android.window.OnBackInvokedDispatcher.PRIORITY_DEFAULT
+            ) { handleBack() }
+        }
     }
 
     // ---- Top bar ----
@@ -274,17 +284,25 @@ class StremioActivity : Activity() {
         webView.evaluateJavascript(js, null)
     }
 
+    // API < 33 dispatches Back here; API 33+ uses the OnBackInvokedCallback
+    // registered in onCreate (legacy onBackPressed isn't called there).
     @Deprecated("Deprecated in Java")
-    override fun onBackPressed() {
+    override fun onBackPressed() { handleBack() }
+
+    /**
+     * Stremio is an SPA, so WebView.canGoBack() is unreliable. Decide by route:
+     * on the player (or any inner page) Back goes to Stremio's home; only when
+     * already at home does Back leave (to the picker). Leaving the player route
+     * lets the watcher restore portrait.
+     */
+    private fun handleBack() {
+        Log.d(TAG, "handleBack customView=${customView != null}")
         if (customView != null) { hideCustomView(); return }
-        if (!this::webView.isInitialized) { super.onBackPressed(); return }
-        // Stremio is an SPA, so WebView.canGoBack() is unreliable. Decide by route:
-        // on the player (or any inner page) Back goes to Stremio's home; only when
-        // already at home does Back leave (to the picker). The route watcher then
-        // restores portrait when we leave the player.
+        if (!this::webView.isInitialized) { finish(); return }
         webView.evaluateJavascript("(location.hash||'')") { raw ->
             val hash = (raw ?: "").trim('"')
             val atHome = hash.isEmpty() || hash == "#" || hash == "#/" || hash.contains("/board")
+            Log.d(TAG, "back: hash=$hash atHome=$atHome -> ${if (atHome) "finish" else "goBoard"}")
             runOnUiThread {
                 if (atHome) finish()
                 else webView.evaluateJavascript("location.hash='#/board';", null)
@@ -393,6 +411,7 @@ class StremioActivity : Activity() {
     }
 
     companion object {
+        private const val TAG = "STRLoaderBack"
         const val EXTRA_PROFILE_JSON = "profile_json"
         const val EXTRA_PROFILE_ID = "profile_id"
         private const val MATCH = ViewGroup.LayoutParams.MATCH_PARENT

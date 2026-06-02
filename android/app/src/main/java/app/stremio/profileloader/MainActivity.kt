@@ -21,6 +21,7 @@ class MainActivity : Activity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
+        WebView.setWebContentsDebuggingEnabled(true)
         webView = WebView(this)
         setContentView(webView)
 
