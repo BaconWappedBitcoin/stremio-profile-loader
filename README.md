@@ -7,7 +7,7 @@ A **"Who's watching?" profile picker for Stremio.** Stremio has no built-in prof
 | App | Platform | What it drives | Tech | Status |
 |-----|----------|----------------|------|--------|
 | [`windows/`](windows/) | Windows desktop | the **native** Stremio app | Electron launcher | ✅ verified driving native Stremio 5 |
-| [`android/`](android/) | Android phone / tablet / TV | a wrapped **Stremio Web** session | Kotlin WebView | ✅ builds & installs (APK) |
+| [`android/`](android/) | Android phone / tablet / TV | a wrapped **Stremio Web** session | Kotlin WebView | ✅ working, with an in-app profile switcher |
 
 > **How it works in one line:** you add each profile once (email + password); the loader signs in via the Stremio API, stores only a revocable login token, and on launch seeds that session into Stremio so it opens straight into your account. Your password is never stored.
 
@@ -33,7 +33,7 @@ Not affiliated with or endorsed by Stremio. Stores only a Stremio **authKey** (a
 
 > ⚠️ This relies on the native shell exposing remote debugging. Builds vary, so run `npm run doctor` on your machine first — it tells you whether your Stremio can be driven this way.
 
-**Android → wraps Stremio Web.** Android's official Stremio app is closed-source and sandboxed, so no external launcher can change its profile without root. Instead the Android app embeds a Stremio Web session and seeds the chosen profile into it. Best suited to **debrid / HTTP-addon** setups (Real-Debrid, Premiumize, Torrentio+debrid, direct HTTP addons); plain torrent P2P needs a local streaming server that a WebView can't provide.
+**Android → wraps Stremio Web.** Android's official Stremio app is closed-source and sandboxed, so no external launcher can change its profile without root. Instead the Android app embeds a Stremio Web session and seeds the chosen profile into it. A slim top bar shows the active profile and lets you **switch profiles in place** (Netflix-style selector) without leaving the app. Best suited to **debrid / HTTP-addon** setups (Real-Debrid, Premiumize, Torrentio+debrid, direct HTTP addons); plain torrent P2P needs a local streaming server that a WebView can't provide.
 
 ## Repository layout
 
@@ -86,7 +86,7 @@ Requires Android SDK with **API 36** + **build-tools 36.0.0** (AGP 8.9.1 / Gradl
 
 ### Sideloading the Android APK
 
-The APK is a **debug build** (signed with the standard Android debug key, so it installs without further signing).
+The APK is signed with a **stable, committed key** (see [`android/keystore/`](android/keystore/README.md)), so new versions install **in place over older ones — no uninstall needed**. (One exception: upgrading from v0.1.0 or v0.1.1, which predate that key, needs a single uninstall.)
 
 **Phone / tablet**
 1. Download `STRLoader.apk` onto the device (from [Releases](https://github.com/BaconWappedBitcoin/stremio-profile-loader/releases/latest)) or transfer it over.
@@ -108,11 +108,21 @@ adb install -r STRLoader.apk
 2. **Add profile** → give it a name, enter the Stremio email + password. The loader signs in once and stores the returned token.
 3. Click a profile:
    - **Windows:** any running Stremio is closed and the native app relaunches signed into that account.
-   - **Android:** Stremio Web opens signed into that account.
-4. To switch, return to the picker and pick another profile (Windows relaunches the native app).
-5. Remove a profile with the × on its card (this only deletes it locally; your Stremio account is untouched).
+   - **Android:** Stremio Web opens signed into that account, with a top bar showing who's active.
+4. To switch profiles:
+   - **Android:** tap the profile chip in the top bar and pick another — it switches in place. "Manage profiles…" opens the picker to add/edit/remove.
+   - **Windows:** return to the picker and pick another profile (the native app relaunches).
+5. Edit a profile's name/icon with the ✏️ on its card, or remove it with the × (removing only deletes it locally; your Stremio account is untouched).
 
 If a stored token ever expires, the loader will tell you to remove and re-add that profile.
+
+## Keeping up with Stremio
+
+STRLoader bundles **none** of Stremio's code — it points at Stremio's live web app (`web.stremio.com`). So it **always runs Stremio's latest web version automatically**, with no rebuild when Stremio ships an update. (Stremio's *native* APK is irrelevant — STRLoader uses Stremio Web, not the native app.)
+
+STRLoader's own code only needs updating if Stremio changes the **contract** it depends on to inject a session — the login API or the localStorage profile schema — both centralized in [`shared/stremio-api.js`](shared/stremio-api.js) (`SCHEMA_VERSION` + `DEFAULT_SETTINGS`). The symptom of such a change is landing on Stremio's login screen instead of signed in.
+
+Native-only features (the bundled torrent streaming server, native players) aren't part of Stremio Web, so they never appear in the Android wrapper regardless of Stremio updates — that's the inherent wrapper ceiling.
 
 ## Security notes
 
