@@ -73,6 +73,7 @@ ipcMain.handle('profiles:add', async (_evt, { label, email, password, icon }) =>
     throw new Error('Please fill in the profile name, email and password.');
   }
   const { authKey, user } = await api.login(email.trim(), password);
+  password = undefined; // Clear password from memory immediately after use.
   const created = store.add({ label: label.trim(), email: email.trim(), authKey, user, icon });
   return { id: created.id, label: created.label, email: created.email, avatar: created.avatar, icon: created.icon };
 });
@@ -129,7 +130,7 @@ ipcMain.handle('profiles:launch', async (_evt, id) => {
   await native.launchWithProfile({
     profileObject,
     schemaVersion: api.SCHEMA_VERSION,
-    overlayProfiles: store.allWithKeys(),
+    overlayProfiles: store.allForOverlay(),
     currentId: id,
     onOpenPicker: showPicker,
   });

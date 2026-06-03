@@ -11,6 +11,7 @@
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
+const { safeStorage } = require('electron');
 
 class ProfileStore {
   constructor(userDataDir) {
@@ -21,13 +22,32 @@ class ProfileStore {
 
   _load() {
     try {
-      const raw = fs.readFileSync(this.file, 'utf8');
-      const parsed = JSON.parse(raw);
+      const raw = fs.readFileSync(this.file);
+      if (!raw || raw.length === 0) throw new Error('empty file');
+      let json;
+      // Try encrypted format first (safeStorage), then plaintext (legacy migration).
+      if (safeStorage.isEncryptionAvailable()) {
+        try {
+          json = safeStorage.decryptString(raw);
+        } catch (_) {
+          // Not encrypted or wrong key — try plaintext for migration.
+          json = raw.toString('utf8');
+        }
+      } else {
+        json = raw.toString('utf8');
+      }
+      const parsed = JSON.parse(json);
       if (parsed && Array.isArray(parsed.profiles)) {
+        // Validate each profile has required fields; skip invalid entries.
+        parsed.profiles = parsed.profiles.filter((p) =>
+          p && typeof p.id === 'string' && typeof p.label === 'string' && typeof p.authKey === 'string'
+        );
         this.data = parsed;
+        // Migrate: re-save encrypted if we loaded plaintext successfully.
+        if (safeStorage.isEncryptionAvailable()) this._save();
       }
     } catch (_) {
-      // Missing or corrupt file -> start fresh.
+      // Missing, corrupt, or unreadable file -> start fresh.
       this.data = { version: 1, profiles: [] };
     }
   }
@@ -35,7 +55,11 @@ class ProfileStore {
   _save() {
     const tmp = this.file + '.tmp';
     try {
-      fs.writeFileSync(tmp, JSON.stringify(this.data, null, 2), { mode: 0o600 });
+      const json = JSON.stringify(this.data, null, 2);
+      const content = safeStorage.isEncryptionAvailable()
+        ? safeStorage.encryptString(json)
+        : Buffer.from(json, 'utf8');
+      fs.writeFileSync(tmp, content, { mode: 0o600 });
       // On Windows renameSync fails if the target is locked; retry once.
       try {
         fs.renameSync(tmp, this.file);
@@ -67,9 +91,9 @@ class ProfileStore {
     return this.data.profiles.find((p) => p.id === id) || null;
   }
 
-  /** Profiles with authKeys, for the in-app overlay selector — main process only. */
-  allWithKeys() {
-    return this.data.profiles.map((p) => ({ id: p.id, label: p.label, authKey: p.authKey }));
+  /** Profile labels for the in-app overlay selector — NO authKeys (never exposed to page context). */
+  allForOverlay() {
+    return this.data.profiles.map((p) => ({ id: p.id, label: p.label }));
   }
 
   add({ label, email, authKey, user, icon }) {

@@ -25,15 +25,12 @@
     return el('div', 'width:' + size + 'px;height:' + size + 'px;border-radius:50%;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;font-family:sans-serif;font-size:' + (size * 0.42) + 'px;background:' + AVATAR_BG + ';flex:0 0 auto;', initial(label));
   }
   function currentId() {
-    try {
-      var pf = JSON.parse(localStorage.getItem('profile') || '{}');
-      var k = pf && pf.auth && pf.auth.key;
-      var m = PROFILES.filter(function (p) { return p.authKey === k; })[0];
-      if (m) return m.id;
-    } catch (e) { /* ignore */ }
+    // STRLOADER_CURRENT_ID is injected by the launcher and is always correct for
+    // the active session. We no longer match by authKey (they are never exposed
+    // to the page context for security).
     return FALLBACK_ID;
   }
-  function byId(id) { return PROFILES.filter(function (p) { return p.id === id; })[0] || PROFILES[0]; }
+  function byId(id) { return PROFILES.find(function (p) { return p.id === id; }) || PROFILES[0]; }
   function openPicker() { try { if (window.strloaderOpenPicker) window.strloaderOpenPicker(''); } catch (e) { /* ignore */ } }
 
   function mount() {
@@ -55,13 +52,20 @@
     chip.onclick = openPicker;
     wrap.appendChild(chip);
 
-    // Hide while a video is playing (the player route).
+    // Hide while a video is playing (the player route). The hashchange event
+    // covers navigation; SPA route changes within Stremio are handled by the
+    // MutationObserver below, avoiding a persistent polling interval.
     function updateVisibility() {
       var onPlayer = (location.hash || '').indexOf('/player') !== -1;
       wrap.style.display = onPlayer ? 'none' : '';
     }
     window.addEventListener('hashchange', updateVisibility);
-    setInterval(updateVisibility, 600);
+    // Observe URL bar changes for SPA-style navigation within Stremio.
+    var titleEl = document.querySelector('title');
+    if (titleEl) {
+      var obs = new MutationObserver(updateVisibility);
+      obs.observe(titleEl, { childList: true });
+    }
     updateVisibility();
 
     document.body.appendChild(wrap);

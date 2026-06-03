@@ -59,8 +59,8 @@ function registryInstallLocation() {
   ];
   for (const root of roots) {
     try {
-      // /s recurses subkeys; find a Stremio entry's InstallLocation value.
-      const out = execFileSync('reg', ['query', root, '/s', '/f', 'Stremio', '/d'], {
+      // Search key names containing "Stremio" (tightened from generic data search).
+      const out = execFileSync('reg', ['query', root, '/s', '/f', 'Stremio', '/k'], {
         encoding: 'utf8', windowsHide: true, timeout: 4000,
       });
       const m = out.match(/InstallLocation\s+REG_SZ\s+(.+)/i);
@@ -256,23 +256,6 @@ async function launchWithProfile(opts) {
   const env = Object.assign({}, process.env, {
     QTWEBENGINE_REMOTE_DEBUGGING: String(DEBUG_PORT),
     WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS: `--remote-debugging-port=${DEBUG_PORT}`,
-  });
-
-  const child = spawn(exe, [], { env, detached: true, stdio: 'ignore' });
-  child.unref();
-
-  const target = await waitForStremioTarget(DEBUG_PORT);
-  await setupOverlayAndSeed(target.webSocketDebuggerUrl, opts);
-}
-
-module.exports = {
-  DEBUG_PORT,
-  findStremioExe,
-  killRunningStremio,
-  waitForStremioTarget,
-  launchWithProfile,
-};
-RGUMENTS: `--remote-debugging-port=${DEBUG_PORT}`,
   });
 
   const child = spawn(exe, [], { env, detached: true, stdio: 'ignore' });
