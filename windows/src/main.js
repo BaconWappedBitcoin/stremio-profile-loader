@@ -94,20 +94,24 @@ ipcMain.handle('profiles:launch', async (_evt, id) => {
 
   // Validate / refresh the session. getUser throws on an expired or revoked
   // authKey, which is the signal to ask the user to re-add the profile.
-    let user;
-    try {
-      user = await api.getUser(profile.authKey);
-      if (!user) throw new api.StremioApiError('Empty user returned', 'NO_USER');
-    } catch (e) {
-      if (e instanceof api.StremioApiError) {
-        if (e.code === 'NETWORK') {
-          throw new Error('Network error talking to Stremio. Check your connection and try again.');
-        }
-        throw new Error('This profile\'s Stremio session has expired. Remove it and add it again.');
+  let user;
+  try {
+    user = await api.getUser(profile.authKey);
+    if (!user) throw new api.StremioApiError('Empty user returned', 'NO_USER');
+  } catch (e) {
+    if (e instanceof api.StremioApiError) {
+      if (e.code === 'NETWORK') {
+        throw new Error('Network error talking to Stremio. Check your connection and try again.');
       }
-      throw e;
+      if (e.code === 'BAD_RESPONSE') {
+        throw new Error('Stremio returned an unexpected response. Try again in a moment.');
+      }
+      // Expired / revoked authKey or any other API-level error.
+      throw new Error('This profile\'s Stremio session has expired. Remove it and add it again.');
     }
-    store.updateUser(id, user);
+    throw e;
+  }
+  store.updateUser(id, user);
 
   let addons = [];
   try { addons = await api.getAddonCollection(profile.authKey); } catch (_) { addons = []; }

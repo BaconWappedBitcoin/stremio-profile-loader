@@ -34,8 +34,21 @@ class ProfileStore {
 
   _save() {
     const tmp = this.file + '.tmp';
-    fs.writeFileSync(tmp, JSON.stringify(this.data, null, 2), { mode: 0o600 });
-    fs.renameSync(tmp, this.file);
+    try {
+      fs.writeFileSync(tmp, JSON.stringify(this.data, null, 2), { mode: 0o600 });
+      // On Windows renameSync fails if the target is locked; retry once.
+      try {
+        fs.renameSync(tmp, this.file);
+      } catch (renameErr) {
+        try { fs.copyFileSync(tmp, this.file); fs.unlinkSync(tmp); } catch (_) {
+          throw renameErr;
+        }
+      }
+    } catch (writeErr) {
+      // If we wrote a temp file but failed the rename/copy, clean up.
+      try { fs.unlinkSync(tmp); } catch (_) { /* best effort */ }
+      throw writeErr;
+    }
   }
 
   /** Public, password/token-free view for the renderer. */

@@ -85,10 +85,21 @@ function killRunningStremio() {
     if (process.platform !== 'win32') { resolve(); return; }
     // /T kills child processes too (the bundled streaming server / runtime).
     const names = ['stremio-shell-ng.exe', 'stremio.exe', 'Stremio.exe', 'stremio-runtime.exe'];
+    const procs = names.map((n) => n.toLowerCase());
     let i = 0;
     const next = () => {
-      if (i >= names.length) { resolve(); return; }
+      if (i >= names.length) { verifyGone(4); return; }
       execFile('taskkill', ['/F', '/IM', names[i++], '/T'], () => next());
+    };
+    const verifyGone = (retries) => {
+      if (retries <= 0) { resolve(); return; }
+      execFile('tasklist', ['/FO', 'CSV', '/NH'], { encoding: 'utf8', windowsHide: true, timeout: 3000 }, (err, stdout) => {
+        if (err) { resolve(); return; }
+        const still = (stdout || '').toLowerCase();
+        const alive = procs.some((p) => still.includes(p));
+        if (!alive) { resolve(); return; }
+        setTimeout(() => verifyGone(retries - 1), 400);
+      });
     };
     next();
   });
@@ -168,14 +179,28 @@ function setupOverlayAndSeed(webSocketDebuggerUrl, opts) {
     let id = 0;
     const pending = new Map();
     const send = (method, params) =>
-      new Promise((res) => { const mid = ++id; pending.set(mid, res); ws.send(JSON.stringify({ id: mid, method, params })); });
+      new Promise((res, rej) => {
+        const mid = ++id;
+        pending.set(mid, { res, rej });
+        try { ws.send(JSON.stringify({ id: mid, method, params })); }
+        catch (e) { pending.delete(mid); rej(e); }
+      });
 
     const timer = setTimeout(() => { try { ws.close(); } catch (_) {} reject(new Error('CDP setup timed out')); }, 20000);
 
     ws.on('message', (raw) => {
       let msg;
       try { msg = JSON.parse(raw.toString()); } catch (_) { return; }
-      if (msg.id && pending.has(msg.id)) { pending.get(msg.id)(msg); pending.delete(msg.id); return; }
+      if (msg.id && pending.has(msg.id)) {
+        const { res, rej } = pending.get(msg.id);
+        pending.delete(msg.id);
+        if (msg.error) {
+          rej(new Error(`CDP ${msg.error.message || 'unknown error'} (code: ${msg.error.code || 'N/A'})`));
+        } else {
+          res(msg);
+        }
+        return;
+      }
       // The injected chip calls window.strloaderOpenPicker() -> reopen the picker.
       if (msg.method === 'Runtime.bindingCalled' && msg.params && msg.params.name === 'strloaderOpenPicker') {
         try { if (typeof onOpenPicker === 'function') onOpenPicker(); } catch (_) {}
@@ -231,6 +256,23 @@ async function launchWithProfile(opts) {
   const env = Object.assign({}, process.env, {
     QTWEBENGINE_REMOTE_DEBUGGING: String(DEBUG_PORT),
     WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS: `--remote-debugging-port=${DEBUG_PORT}`,
+  });
+
+  const child = spawn(exe, [], { env, detached: true, stdio: 'ignore' });
+  child.unref();
+
+  const target = await waitForStremioTarget(DEBUG_PORT);
+  await setupOverlayAndSeed(target.webSocketDebuggerUrl, opts);
+}
+
+module.exports = {
+  DEBUG_PORT,
+  findStremioExe,
+  killRunningStremio,
+  waitForStremioTarget,
+  launchWithProfile,
+};
+RGUMENTS: `--remote-debugging-port=${DEBUG_PORT}`,
   });
 
   const child = spawn(exe, [], { env, detached: true, stdio: 'ignore' });
