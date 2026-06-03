@@ -162,9 +162,12 @@ function closeActiveCdp() {
  */
 function buildOverlaySource(profiles, currentId) {
   const overlayBody = fs.readFileSync(path.join(__dirname, 'overlay.js'), 'utf8');
+  // Escape U+2028 (LINE SEPARATOR) and U+2029 (PARAGRAPH SEPARATOR) which are
+  // valid JSON but break JS string literals in pre-ES2019 engines (defense in depth).
+  const safeJson = (obj) => JSON.stringify(obj).replace(/\u2028|\u2029/g, '');
   const header =
-    'var STRLOADER_PROFILES=' + JSON.stringify(profiles) + ';' +
-    'var STRLOADER_CURRENT_ID=' + JSON.stringify(currentId) + ';';
+    'var STRLOADER_PROFILES=' + safeJson(profiles) + ';' +
+    'var STRLOADER_CURRENT_ID=' + safeJson(currentId) + ';';
   return '(function(){\n' + header + '\n' + overlayBody + '\n})();';
 }
 

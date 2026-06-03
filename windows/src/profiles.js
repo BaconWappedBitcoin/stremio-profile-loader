@@ -44,7 +44,10 @@ class ProfileStore {
         );
         this.data = parsed;
         // Migrate: re-save encrypted if we loaded plaintext successfully.
-        if (safeStorage.isEncryptionAvailable()) this._save();
+        // Wrap in its own try/catch — migration failure must not clear profiles.
+        if (safeStorage.isEncryptionAvailable()) {
+          try { this._save(); } catch (_) { /* non-fatal: will retry on next save */ }
+        }
       }
     } catch (_) {
       // Missing, corrupt, or unreadable file -> start fresh.
